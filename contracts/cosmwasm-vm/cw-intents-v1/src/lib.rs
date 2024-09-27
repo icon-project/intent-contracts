@@ -1,9 +1,11 @@
 pub mod contract;
 pub mod errors;
+pub mod events;
 pub mod msg;
 pub mod state;
 pub mod types;
 
+use common::rlp;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, to_json_binary, Binary, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo,
@@ -63,8 +65,7 @@ pub fn execute(
                 min_receive,
                 data,
             );
-            call_service.swap(order, deps, env, info);
-            Ok(Response::new())
+            return call_service.swap(order, deps, env, info);
         }
         ExecuteMsg::Fill {
             id,
@@ -80,12 +81,33 @@ pub fn execute(
             data,
             fill_amount,
             solver_address,
-        } => Ok(Response::new()),
+        } => {
+            let order = SwapOrder {
+                id,
+                emitter,
+                src_nid,
+                dst_nid,
+                creator,
+                destination_address,
+                token,
+                amount,
+                to_token,
+                min_receive,
+                data,
+            };
+            return call_service.fill(order, fill_amount, solver_address, deps, env, info);
+        }
         ExecuteMsg::RecvMessage {
             src_network,
             conn_sn,
             msg,
-        } => Ok(Response::new()),
+        } => {
+            let order_msg =
+                rlp::decode::<OrderMsg>(&msg).map_err(|e| ContractError::DecodeError {
+                    error: e.to_string(),
+                })?;
+            return call_service.receive_msg(deps, env, info, src_network, conn_sn, order_msg);
+        }
     }
 }
 
@@ -96,5 +118,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetOrder { id } => {
             to_json_binary(&call_service.get_order(deps.storage, id).unwrap())
         }
+        QueryMsg::GetDepositId {} => to_json_binary(&call_service.get_deposit_id(deps.storage)),
     }
 }

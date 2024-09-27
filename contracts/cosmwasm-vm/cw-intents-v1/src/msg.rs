@@ -29,7 +29,7 @@ pub enum ExecuteMsg {
     RecvMessage {
         src_network: String,
         conn_sn: u128,
-        msg: String,
+        msg: Vec<u8>,
     },
 }
 
@@ -41,4 +41,7 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     #[returns(u64)]
     GetOrder { id: u128 },
+
+    #[returns(u64)]
+    GetDepositId {},
 }

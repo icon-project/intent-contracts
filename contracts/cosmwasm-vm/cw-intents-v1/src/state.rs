@@ -12,6 +12,8 @@ pub struct CwIntentV1Service<'a> {
     orders: Map<'a, u128, SwapOrder>,
     pending_fills: Map<'a, Vec<u8>, u128>,
     finished_orders: Map<'a, Vec<u8>, bool>,
+    conn_sn: Item<'a, u128>,
+    receipts: Map<'a, (String, u128), bool>,
 }
 
 impl<'a> Default for CwIntentV1Service<'a> {
@@ -30,11 +32,13 @@ impl<'a> CwIntentV1Service<'a> {
             orders: Map::new(StorageKey::Orders.as_str()),
             pending_fills: Map::new(StorageKey::PendingFills.as_str()),
             finished_orders: Map::new(StorageKey::FinishedOrders.as_str()),
+            conn_sn: Item::new(StorageKey::ConnectionSN.as_str()),
+            receipts: Map::new(StorageKey::Receipts.as_str()),
         }
     }
 
-    pub fn get_deposit_id(&self, storage: &dyn Storage) -> StdResult<u128> {
-        self.deposit_id.load(storage)
+    pub fn get_deposit_id(&self, storage: &dyn Storage) -> u128 {
+        self.deposit_id.load(storage).unwrap_or(0)
     }
 
     pub fn get_nid(&self, storage: &dyn Storage) -> StdResult<String> {
@@ -49,12 +53,16 @@ impl<'a> CwIntentV1Service<'a> {
         self.fee_handler.load(storage)
     }
 
-    pub fn get_order(&self, storage: &dyn Storage, key: u128) -> StdResult<Option<SwapOrder>> {
-        self.orders.may_load(storage, key)
+    pub fn get_order(&self, storage: &dyn Storage, key: u128) -> StdResult<SwapOrder> {
+        self.orders.load(storage, key)
     }
 
     pub fn get_pending_fill(&self, storage: &dyn Storage, key: &[u8]) -> Option<u128> {
         self.pending_fills.load(storage, key.to_vec()).ok()
+    }
+
+    pub fn get_conn_sn(&self, storage: &dyn Storage) -> u128 {
+        self.conn_sn.load(storage).unwrap_or(0)
     }
 
     pub fn is_order_finished(&self, storage: &dyn Storage, key: &[u8]) -> bool {
@@ -63,9 +71,17 @@ impl<'a> CwIntentV1Service<'a> {
             .unwrap_or(false)
     }
 
+    pub fn have_received(&self, storage: &dyn Storage, key: (String, u128)) -> bool {
+        self.receipts.load(storage, key).unwrap_or(false)
+    }
+
     // Setters
     pub fn set_deposit_id(&self, storage: &mut dyn Storage, value: u128) -> StdResult<()> {
         self.deposit_id.save(storage, &value)
+    }
+
+    pub fn set_conn_sn(&self, storage: &mut dyn Storage, value: u128) -> StdResult<()> {
+        self.conn_sn.save(storage, &value)
     }
 
     pub fn set_nid(&self, storage: &mut dyn Storage, value: String) -> StdResult<()> {
@@ -98,6 +114,14 @@ impl<'a> CwIntentV1Service<'a> {
         self.pending_fills.save(storage, key.to_vec(), &value)
     }
 
+    pub fn remove_pending_fill(&self, storage: &mut dyn Storage, key: &[u8]) {
+        self.pending_fills.remove(storage, key.to_vec())
+    }
+
+    pub fn remove_order(&self, storage: &mut dyn Storage, key: u128) {
+        self.orders.remove(storage, key)
+    }
+
     pub fn set_order_finished(
         &self,
         storage: &mut dyn Storage,
@@ -105,5 +129,14 @@ impl<'a> CwIntentV1Service<'a> {
         value: bool,
     ) -> StdResult<()> {
         self.finished_orders.save(storage, key.to_vec(), &value)
+    }
+
+    pub fn set_received(
+        &self,
+        storage: &mut dyn Storage,
+        key: (String, u128),
+        val: bool,
+    ) -> StdResult<()> {
+        self.receipts.save(storage, key, &val)
     }
 }

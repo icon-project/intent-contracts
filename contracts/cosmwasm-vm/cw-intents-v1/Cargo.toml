@@ -38,6 +38,7 @@ thiserror = { workspace=true}
 common ={ git = "https://github.com/icon-project/IBC-Integration.git",branch="main" }
 serde-json-wasm = {workspace=true}
 hex="*"
+cw20="*"
 
 [dev-dependencies]
 cosmwasm = "0.7.2"

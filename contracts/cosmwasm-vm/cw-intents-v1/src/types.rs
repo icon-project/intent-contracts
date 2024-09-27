@@ -1,8 +1,11 @@
 use super::*;
 use common::rlp::{self, Decodable, DecoderError, Encodable, RlpStream};
+use cosmwasm_std::Addr;
+use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
+use serde::Serialize;
 
-const ORDER_FILL: u8 = 1;
-const ORDER_CANCEL: u8 = 2;
+pub const ORDER_FILL: u8 = 1;
+pub const ORDER_CANCEL: u8 = 2;
 #[cw_serde]
 pub struct InstantiateMsg {
     pub fee_handler: String,
@@ -20,6 +23,8 @@ pub enum StorageKey {
     PendingOrderAmount,
     PendingFills,
     FinishedOrders,
+    ConnectionSN,
+    Receipts,
 }
 
 impl StorageKey {
@@ -33,6 +38,8 @@ impl StorageKey {
             StorageKey::PendingOrderAmount => "pending_order_amount",
             StorageKey::PendingFills => "pending_fills",
             StorageKey::FinishedOrders => "finished_orders",
+            StorageKey::ConnectionSN => "conn_sn",
+            StorageKey::Receipts => "receipts",
         }
     }
 }
@@ -82,9 +89,44 @@ impl SwapOrder {
     }
 }
 
+impl Encodable for SwapOrder {
+    fn rlp_append(&self, s: &mut RlpStream) {
+        s.begin_list(11);
+        s.append(&self.id);
+        s.append(&self.emitter);
+        s.append(&self.src_nid);
+        s.append(&self.dst_nid);
+        s.append(&self.creator);
+        s.append(&self.destination_address);
+        s.append(&self.token);
+        s.append(&self.amount);
+        s.append(&self.to_token);
+        s.append(&self.min_receive);
+        s.append(&self.data);
+    }
+}
+
+impl Decodable for SwapOrder {
+    fn decode(rlp: &rlp::Rlp) -> Result<Self, DecoderError> {
+        Ok(SwapOrder {
+            id: rlp.val_at(0)?,
+            emitter: rlp.val_at(1)?,
+            src_nid: rlp.val_at(2)?,
+            dst_nid: rlp.val_at(3)?,
+            creator: rlp.val_at(4)?,
+            destination_address: rlp.val_at(5)?,
+            token: rlp.val_at(6)?,
+            amount: rlp.val_at(7)?,
+            to_token: rlp.val_at(8)?,
+            min_receive: rlp.val_at(9)?,
+            data: rlp.val_at(10)?,
+        })
+    }
+}
+
 pub struct OrderMsg {
-    msg_type: u8,
-    message: Vec<u8>,
+    pub msg_type: u8,
+    pub message: Vec<u8>,
 }
 
 impl Encodable for OrderMsg {
@@ -104,11 +146,11 @@ impl Decodable for OrderMsg {
 }
 
 pub struct OrderFill {
-    id: u128,
-    order_bytes: Vec<u8>,
-    solver_address: String,
-    amount: u128,
-    closed: bool,
+    pub id: u128,
+    pub order_bytes: Vec<u8>,
+    pub solver_address: String,
+    pub amount: u128,
+    pub closed: bool,
 }
 
 impl Encodable for OrderFill {
@@ -135,7 +177,7 @@ impl Decodable for OrderFill {
 }
 
 pub struct OrderCancel {
-    order_bytes: Vec<u8>,
+    pub order_bytes: Vec<u8>,
 }
 
 impl Encodable for OrderCancel {
