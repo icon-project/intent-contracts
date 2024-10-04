@@ -6,12 +6,6 @@ use serde::Serialize;
 
 pub const ORDER_FILL: u8 = 1;
 pub const ORDER_CANCEL: u8 = 2;
-#[cw_serde]
-pub struct InstantiateMsg {
-    pub fee_handler: String,
-    pub nid: String,
-    pub fee: u8,
-}
 
 #[cw_serde]
 pub enum StorageKey {
@@ -25,6 +19,7 @@ pub enum StorageKey {
     FinishedOrders,
     ConnectionSN,
     Receipts,
+    Relayer,
 }
 
 impl StorageKey {
@@ -40,6 +35,7 @@ impl StorageKey {
             StorageKey::FinishedOrders => "finished_orders",
             StorageKey::ConnectionSN => "conn_sn",
             StorageKey::Receipts => "receipts",
+            StorageKey::Relayer => "relayer",
         }
     }
 }

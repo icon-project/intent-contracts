@@ -1,6 +1,14 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
 #[cw_serde]
+pub struct InstantiateMsg {
+    pub fee_handler: String,
+    pub nid: String,
+    pub fee: u8,
+    pub relayer: String,
+}
+
+#[cw_serde]
 pub enum ExecuteMsg {
     Swap {
         dst_nid: String,
@@ -44,4 +52,6 @@ pub enum QueryMsg {
 
     #[returns(u64)]
     GetDepositId {},
+    #[returns(String)]
+    GetFeeHandler {},
 }

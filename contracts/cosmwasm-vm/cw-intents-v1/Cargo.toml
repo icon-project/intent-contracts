@@ -39,9 +39,10 @@ common ={ git = "https://github.com/icon-project/IBC-Integration.git",branch="ma
 serde-json-wasm = {workspace=true}
 hex="*"
 cw20="*"
+cw20-base="*"
 
 [dev-dependencies]
 cosmwasm = "0.7.2"
-cw-multi-test = "0.16.2"
+cw-multi-test = "*"
 getrandom = {version = "0.2", default-features = false, features = ["custom"]}
 

@@ -14,6 +14,7 @@ pub struct CwIntentV1Service<'a> {
     finished_orders: Map<'a, Vec<u8>, bool>,
     conn_sn: Item<'a, u128>,
     receipts: Map<'a, (String, u128), bool>,
+    relayer: Item<'a, Addr>,
 }
 
 impl<'a> Default for CwIntentV1Service<'a> {
@@ -34,11 +35,16 @@ impl<'a> CwIntentV1Service<'a> {
             finished_orders: Map::new(StorageKey::FinishedOrders.as_str()),
             conn_sn: Item::new(StorageKey::ConnectionSN.as_str()),
             receipts: Map::new(StorageKey::Receipts.as_str()),
+            relayer: Item::new(StorageKey::Relayer.as_str()),
         }
     }
 
     pub fn get_deposit_id(&self, storage: &dyn Storage) -> u128 {
         self.deposit_id.load(storage).unwrap_or(0)
+    }
+
+    pub fn get_relayer(&self, storage: &dyn Storage) -> StdResult<Addr> {
+        self.relayer.load(storage)
     }
 
     pub fn get_nid(&self, storage: &dyn Storage) -> StdResult<String> {
@@ -78,6 +84,10 @@ impl<'a> CwIntentV1Service<'a> {
     // Setters
     pub fn set_deposit_id(&self, storage: &mut dyn Storage, value: u128) -> StdResult<()> {
         self.deposit_id.save(storage, &value)
+    }
+
+    pub fn set_relayer(&self, storage: &mut dyn Storage, value: Addr) -> StdResult<()> {
+        self.relayer.save(storage, &value)
     }
 
     pub fn set_conn_sn(&self, storage: &mut dyn Storage, value: u128) -> StdResult<()> {

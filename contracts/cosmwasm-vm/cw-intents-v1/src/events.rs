@@ -17,13 +17,21 @@ pub fn create_swap_order_event(order: &SwapOrder) -> Event {
         .add_attribute("token", order.token.to_string())
 }
 
-pub fn create_order_fill_event(fill: &OrderFill) -> Event {
+pub fn create_order_fill_event(
+    fill: &OrderFill,
+    remaining_amount: u128,
+    fee: u128,
+    fill_amount: u128,
+) -> Event {
     Event::new("OrderFill")
         .add_attribute("id", fill.id.to_string())
-        .add_attribute("amount", fill.amount.to_string())
+        .add_attribute("payout", fill.amount.to_string())
         .add_attribute("solver_address", fill.solver_address.to_string())
         .add_attribute("order_bytes", hex::encode(&fill.order_bytes))
         .add_attribute("closed", fill.closed.to_string())
+        .add_attribute("remaining_amount", remaining_amount.to_string())
+        .add_attribute("fee", fee.to_string())
+        .add_attribute("fill_amount", fill_amount.to_string())
 }
 
 pub fn create_send_message_event(nid: String, conn_sn: u128, msg: Vec<u8>) -> Event {

@@ -25,4 +25,6 @@ pub enum ContractError {
     InvalidMessageType,
     #[error("MessageAlreadyReceived")]
     MessageAlreadyReceived,
+    #[error("InvalidDstNId")]
+    InvalidDstNId,
 }

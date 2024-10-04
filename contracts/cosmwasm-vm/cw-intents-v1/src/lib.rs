@@ -15,7 +15,7 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use cw_storage_plus::{Item, Map};
 pub use errors::*;
-use msg::{ExecuteMsg, QueryMsg};
+use msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use state::CwIntentV1Service;
 use thiserror::Error;
 pub use types::*;
@@ -119,5 +119,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_json_binary(&call_service.get_order(deps.storage, id).unwrap())
         }
         QueryMsg::GetDepositId {} => to_json_binary(&call_service.get_deposit_id(deps.storage)),
+        QueryMsg::GetFeeHandler {} => {
+            to_json_binary(&call_service.get_fee_handler(deps.storage).unwrap())
+        }
     }
 }

@@ -7,7 +7,7 @@ use common::{
 };
 use cosmwasm_std::{to_binary, Addr, BankMsg, Coin};
 use cw20::Cw20ExecuteMsg;
-use events::create_send_message_event;
+use events::{create_order_fill_event, create_send_message_event};
 
 use super::*;
 
@@ -27,6 +27,8 @@ impl<'a> CwIntentV1Service<'a> {
         self.set_nid(deps.storage, msg.nid)?;
         self.set_fee_handler(deps.storage, deps.api.addr_validate(&msg.fee_handler)?)?;
         self.set_deposit_id(deps.storage, 0)?;
+        let relayer = deps.api.addr_validate(&msg.relayer)?;
+        self.set_relayer(deps.storage, relayer)?;
 
         Ok(Response::new())
     }
@@ -54,15 +56,13 @@ impl<'a> CwIntentV1Service<'a> {
         env: Env,
         info: MessageInfo,
     ) -> Result<Response, ContractError> {
-        let stored = self.get_order(deps.storage, order.id)?;
+        let self_nid = self.get_nid(deps.storage)?;
+
+        if order.dst_nid != self_nid {
+            return Err(ContractError::InvalidDstNId);
+        }
         let order_bytes = order.rlp_bytes();
         let order_hash = keccak256(&order_bytes);
-        if keccak256(&stored.rlp_bytes()) != order_hash {
-            return Err(ContractError::DecodeError {
-                error: "Hash Mismatch".to_string(),
-            });
-        }
-
         if self.is_order_finished(deps.storage, &order_hash) {
             return Err(ContractError::OrderAlreadyComplete);
         }
@@ -117,6 +117,9 @@ impl<'a> CwIntentV1Service<'a> {
         };
         let mut response = Response::new();
 
+        let order_fill_event =
+            create_order_fill_event(&order_fill, remaining_amount, fee, fill_amount);
+
         if order.src_nid == order.dst_nid {
             response = self.resolve_fill(deps, env, order.src_nid, order_fill)?;
         } else {
@@ -128,7 +131,12 @@ impl<'a> CwIntentV1Service<'a> {
             let event = create_send_message_event(order.src_nid, sn, msg.rlp_bytes().to_vec());
             response = response.add_event(event);
         }
-        response = response.add_messages(vec![fee_transfer, receiver_transfer]);
+
+        response = response.add_message(receiver_transfer);
+        if fee > 0 {
+            response = response.add_message(fee_transfer);
+        }
+        response = response.add_event(order_fill_event);
         Ok(response)
     }
 
@@ -141,6 +149,11 @@ impl<'a> CwIntentV1Service<'a> {
         conn_sn: u128,
         order_msg: OrderMsg,
     ) -> Result<Response, ContractError> {
+        let relayer = self.get_relayer(deps.storage)?;
+        if info.sender != relayer {
+            return Err(ContractError::Unauthorized {});
+        }
+
         if self.have_received(deps.storage, (src_network.clone(), conn_sn)) {
             return Err(ContractError::MessageAlreadyReceived);
         }
@@ -321,9 +334,9 @@ impl<'a> CwIntentV1Service<'a> {
 
     pub fn is_native(&self, deps: Deps, denom: &String) -> bool {
         if let Some(addr) = deps.api.addr_validate(denom).ok() {
-            return self.is_contract(deps, &addr);
+            return !self.is_contract(deps, &addr);
         }
-        return false;
+        return true;
     }
 
     pub fn get_next_deposit_id(&self, storage: &mut dyn Storage) -> StdResult<u128> {
