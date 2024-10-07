@@ -40,3 +40,19 @@ pub fn create_send_message_event(nid: String, conn_sn: u128, msg: Vec<u8>) -> Ev
         .add_attribute("to", nid.to_string())
         .add_attribute("msg", hex::encode(msg))
 }
+
+pub fn create_order_closed_event(id: u128) -> Event {
+    Event::new("OrderClosed").add_attribute("id", id.to_string())
+}
+
+pub fn create_order_cancelled_event(
+    order: &SwapOrder,
+    hash: Vec<u8>,
+    remaining_amount: u128,
+) -> Event {
+    Event::new("OrderCancelled")
+        .add_attribute("id", order.id.to_string())
+        .add_attribute("src_nid", order.src_nid.to_string())
+        .add_attribute("hash", hex::encode(hash))
+        .add_attribute("remaining_amount", remaining_amount.to_string())
+}

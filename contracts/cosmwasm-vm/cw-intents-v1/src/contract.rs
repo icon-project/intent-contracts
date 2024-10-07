@@ -7,7 +7,10 @@ use common::{
 };
 use cosmwasm_std::{to_binary, Addr, BankMsg, Coin};
 use cw20::Cw20ExecuteMsg;
-use events::{create_order_fill_event, create_send_message_event};
+use events::{
+    create_order_cancelled_event, create_order_closed_event, create_order_fill_event,
+    create_send_message_event,
+};
 
 use super::*;
 
@@ -104,7 +107,7 @@ impl<'a> CwIntentV1Service<'a> {
             deps.as_ref(),
             env.contract.address.to_string(),
             order.destination_address.clone(),
-            (fill_amount - fee),
+            fill_amount - fee,
             &order.to_token,
         );
 
@@ -197,6 +200,7 @@ impl<'a> CwIntentV1Service<'a> {
         let mut response = Response::new();
         if fill.closed == true {
             self.remove_order(deps.storage, order.id);
+            response = response.add_event(create_order_closed_event(order.id));
         }
         let transfer = self.try_transfer(
             deps.as_ref(),
@@ -236,7 +240,7 @@ impl<'a> CwIntentV1Service<'a> {
         let fill = OrderFill {
             id: order.id,
             order_bytes,
-            solver_address: order.creator,
+            solver_address: order.creator.clone(),
             amount: remaining_amount,
             closed: true,
         };
@@ -245,8 +249,12 @@ impl<'a> CwIntentV1Service<'a> {
             message: fill.rlp_bytes().to_vec(),
         };
         let conn_sn = self.get_next_conn_sn(deps.storage)?;
-        let event = create_send_message_event(order.src_nid, conn_sn, msg.rlp_bytes().to_vec());
-        response = response.add_event(event);
+        let send_event =
+            create_send_message_event(order.src_nid.clone(), conn_sn, msg.rlp_bytes().to_vec());
+        let cancelled_event =
+            create_order_cancelled_event(&order, order_hash.to_vec(), remaining_amount);
+        response = response.add_event(cancelled_event);
+        response = response.add_event(send_event);
 
         Ok(response)
     }
