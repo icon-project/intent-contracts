@@ -7,18 +7,6 @@ import { PERMIT2_ADDRESS, PermitTransferFrom, SignatureTransfer, Witness } from 
 import { _TypedDataEncoder } from '@ethersproject/hash'
 import { MaxUint256, Interface} from 'ethers';
 
-const arbNID = "nid"
-const suiNID = "SUI"
-
-const intentContract = "0xDc4c9866b930a4dBe159263F47B229dcE404F355";
-const token = "0xb1D4538B4571d411F07960EF2838Ce337FE1E80E"
-const perm2 = PERMIT2_ADDRESS
-const amount = BigInt(10)
-
-const toAddress = "SUI"
-const toToken = "SUI"
-const toAmount = BigInt(10)
-
 const erc20Abi = [
     {
       "constant": false,
@@ -47,7 +35,7 @@ const erc20Abi = [
 
 
 
-class EVMIntents {
+export class EVMIntents{
     address: string;
     provider: JsonRpcProvider;
     intents: Contract;
@@ -66,7 +54,7 @@ class EVMIntents {
 
     async approve(token: string) {
         const erc20 = new Contract(token, erc20Abi, this.wallet);
-        await erc20.approve(perm2, MaxUint256);
+        await erc20.approve(PERMIT2_ADDRESS, MaxUint256);
     }
 
     toDeadline(expiration: number): number {
@@ -78,11 +66,11 @@ class EVMIntents {
         // Not correct way to manage nonce?
         const permit: PermitTransferFrom = {
             permitted: {
-                token: token,
-                amount: swapOrder.amount
+                token: swapOrder.token,
+                amount: swapOrder.amount.valueOf()
 
             },
-            spender: intentContract,
+            spender: swapOrder.emitter,
             nonce: await this.wallet.getTransactionCount(),
             deadline: deadline
         };
@@ -92,7 +80,7 @@ class EVMIntents {
             witnessType: { SwapOrder: swapOrder.PERMIT2_STRUCT },
             witness: swapOrder.toStruct(),
         }
-        const { domain, types, values } = SignatureTransfer.getPermitData(permit, perm2, 421614, witness)
+        const { domain, types, values } = SignatureTransfer.getPermitData(permit, PERMIT2_ADDRESS, 421614, witness)
         const signature = await this.wallet._signTypedData(domain, types, values);
         return [signature, permit]
     }
@@ -108,19 +96,27 @@ class EVMIntents {
     async fill(swapOrder: SwapOrder, repayAddress: string ): Promise<any> {
         var value = BigInt(0);
         if (swapOrder.toToken == "0x0000000000000000000000000000"){
-            value = swapOrder.amount
+            value = swapOrder.amount.valueOf()
         } else {
             // approve token
         }
-        await this.intents.fill(swapOrder.toData(), repayAddress {value:value})
+        await this.intents.fill(swapOrder.toData(), repayAddress, {value:value})
     }
 
-    async getOrder(txHash: string) {
+    async getBalance(token: string , address: string ): Promise<BigInt> {
+        if (token == "0x0000000000000000000000000000000000000000") {
+            return (await this.provider.getBalance(token)).toBigInt()
+        }
+
+        // TODO
+        return BigInt(0)
+    }
+
+    async getOrder(txHash: string) : Promise<SwapOrder> {
         const receipt = await this.provider.getTransactionReceipt(txHash)
         const iface = new Interface(this.abi);
         receipt.logs.forEach((log) => {
-            if (log.address.toLowerCase() === intentContract.toLowerCase()) {
-                // Decode the log
+            if (log.address.toLowerCase() === this.intents.address.toLowerCase()) {
                 try {
                     const decodedLog = iface.parseLog(log);
                     if (decodedLog?.name == "SwapIntent") {
@@ -144,15 +140,13 @@ class EVMIntents {
                 }
             }
         });
+        throw "no order found"
     }
 }
 
 
-const getProvider = () => {
-    const providerUrl = "https://sepolia-rollup.arbitrum.io/rpc";
-    return new JsonRpcProvider(providerUrl);
-};
 
-
-
+// ~/.cargo/bin/forge  create --constructor-args "0xaa37dc.arbitrum" 10 0xEAbEb33723E2Df17De55906ddE1393C544204a8e 0x35D1B13C0DE523207c2106DE2e704E16EB1516b3 0x000000000022D473030F116dDEE9F6B43aC78BA3   --rpc-url https://sepolia-rollup.arbitrum.io/rpc/ --keystore .keystores/balanced_testnet_eth  contracts/Intents/Intents.sol:Intents
+// ~/.cargo/bin/forge verify-contract 0xDf01D1CD6675271c0F894049773AEA1E8b77607D contracts/Intents/Intents.sol:Intents --verifier-url 'https://api-sepolia.arbiscan.io/api' --etherscan-api-key "ZP4SRGNIXX7PRT8IMT1IQEPV86EX5326Q5" --num-of-optimizations 200 --compiler-version 0.8.21 --constructor-args $(~/.cargo/bin/cast abi-encode "constructor(string,uint16,address,address,address)" "nid" 10 0xEAbEb33723E2Df17De55906ddE1393C544204a8e 0xEAbEb33723E2Df17De55906ddE1393C544204a8e 0x000000000022D473030F116dDEE9F6B43aC78BA3)
+// ~/.cargo/bin/forge  create --constructor-args 0x0000000000000000000000000000000000000000d3af2663da51c10215000000   --rpc-url https://sepolia-rollup.arbitrum.io/rpc/ --keystore ../../contracts/evm/.keystores/balanced_testnet_eth  src/Permit2.sol:Permit2
 
