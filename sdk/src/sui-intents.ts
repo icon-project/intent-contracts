@@ -3,16 +3,18 @@ import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction } from '@mysten/sui/transactions';
 import { SwapOrder } from './swap-order';
 
-class SuiIntents {
+export class SuiIntents {
     client: SuiClient;
     keypair: Ed25519Keypair;
     packageId: string;
+    storageId: string;
 
-    constructor(packageId: string, net: 'mainnet' | 'testnet' | 'devnet' | 'localnet', keypair: Ed25519Keypair) {
+    constructor(packageId: string, storageId: string, net: 'mainnet' | 'testnet' | 'devnet' | 'localnet', keypair: Ed25519Keypair) {
         const rpcUrl = getFullnodeUrl(net);
         this.keypair = keypair;
         this.client = new SuiClient({ url: rpcUrl });
-        this.packageId = packageId; // Sui package ID for the deployed Move contract
+        this.packageId = packageId;
+        this.storageId = storageId;
     }
 
     private async getCoin(tx: Transaction, coin: string, amount: bigint) {
@@ -49,20 +51,20 @@ class SuiIntents {
         let coin: any;
 
         if (swapOrder.token === "0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI") {
-            coin = tx.splitCoins(tx.gas, [swapOrder.amount])[0];
+            coin = tx.splitCoins(tx.gas, [swapOrder.amount.valueOf()])[0];
         } else {
-            coin = await this.getCoin(tx, swapOrder.token, swapOrder.amount);
+            coin = await this.getCoin(tx, swapOrder.token, swapOrder.amount.valueOf());
         }
 
         tx.moveCall({
             target: `${this.packageId}::main::swap`,
             arguments: [
-                tx.object("0x20499b147e56a123670f538c77afc2a20029643f28ce6b074183c8bfcf091d22"),
+                tx.object(this.storageId),
                 tx.pure.string(swapOrder.dstNID),
                 tx.object(coin),
                 tx.pure.string(swapOrder.toToken),
                 tx.pure.string(swapOrder.destinationAddress),
-                tx.pure.u128(swapOrder.toAmount),
+                tx.pure.u128(swapOrder.toAmount.valueOf()),
                 tx.pure.vector('vector<u8>', [].slice.call(swapOrder.data)),
             ],
             typeArguments: [swapOrder.token],
@@ -77,25 +79,25 @@ class SuiIntents {
         let coin: any;
 
         if (swapOrder.toToken === "0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI") {
-            coin = tx.splitCoins(tx.gas, [swapOrder.toAmount])[0];
+            coin = tx.splitCoins(tx.gas, [swapOrder.toAmount.valueOf()])[0];
         } else {
-            coin = await this.getCoin(tx, swapOrder.toToken, swapOrder.toAmount);
+            coin = await this.getCoin(tx, swapOrder.toToken, swapOrder.toAmount.valueOf());
         }
 
         tx.moveCall({
             target: `${this.packageId}::main::fill`,
             arguments: [
                 tx.object("0x20499b147e56a123670f538c77afc2a20029643f28ce6b074183c8bfcf091d22"),
-                tx.pure.u128(swapOrder.id),
+                tx.pure.u128(swapOrder.id.valueOf()),
                 tx.pure.string(swapOrder.emitter),
                 tx.pure.string(swapOrder.srcNID),
                 tx.pure.string(swapOrder.dstNID),
                 tx.pure.string(swapOrder.creator),
                 tx.pure.string(swapOrder.destinationAddress),
                 tx.pure.string(swapOrder.token),
-                tx.pure.u128(swapOrder.amount),
+                tx.pure.u128(swapOrder.amount.valueOf()),
                 tx.pure.string(swapOrder.toToken),
-                tx.pure.u128(swapOrder.toAmount),
+                tx.pure.u128(swapOrder.toAmount.valueOf()),
                 tx.pure.vector('vector<u8>', []),
                 tx.object(coin),
                 tx.pure.string(repayAddress),
@@ -105,6 +107,20 @@ class SuiIntents {
 
         const result = await this.client.signAndExecuteTransaction({ signer: this.keypair, transaction: tx });
         return result;
+    }
+
+    async getBalance(token: string , address: string ): Promise<BigInt> {
+        const coins = await this.client.getCoins({
+            owner: this.keypair.getPublicKey().toSuiAddress(),
+            coinType: token,
+        });
+
+        var sum = BigInt(0);
+        for (const coin of coins.data) {
+            sum += BigInt(coin.balance);
+        }
+
+        return sum
     }
 
     async getOrder(txHash: string): Promise<SwapOrder> {
@@ -133,31 +149,4 @@ class SuiIntents {
         );
     }
 }
-
-
-const packageId = "0x75ff8b82c302ab4d9358059b5a7bf423e2c3fa901e00dd6adeea9e27da0b6506"
-
-
-const keypair = Ed25519Keypair.fromSecretKey("suiprivkey1qrdjntsdyuygqjsx3varvvx2hz6xkuk86zu2y255s0zw97uavl82xjul9z6");
-console.log(keypair.getSecretKey())
-console.log(keypair.getPublicKey().toSuiAddress())
-const sui = new SuiIntents(packageId, "testnet", keypair)
-
-const order = new SwapOrder(
-    BigInt(3),
-    packageId,
-    'arb',
-    'sui',
-    keypair.getPublicKey().toSuiAddress(),
-    '0x29a0918bee7a7e37d1a7d0613efc3f4455883ea217046f7db91d53e69c204589',
-    '0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI',
-    BigInt(10),
-    '0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI',
-    BigInt(100000),
-    new Uint8Array()
-)
-
-// sui.createOrder(order)
-// sui.getOrder("5UTzxFAoWJD53jh5kGuzJW1HEhdGs5ffqkxWEY9D7THx")
-sui.fillOrder(order, "as")
 

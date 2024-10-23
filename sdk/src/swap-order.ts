@@ -2,30 +2,30 @@ import { BigNumberish } from "ethers";
 
 // Define the SwapOrder structure as a TypeScript interface
 interface SwapOrderInterface {
-    id: BigNumberish;                         // uint256 -> bigint (to handle large numbers)
+    id: BigInt;                         // uint256 -> BigInt (to handle large numbers)
     emitter: string;                    // string -> string
     srcNID: string;                     // string -> string
     dstNID: string;                     // string -> string
     creator: string;                    // string -> string
     destinationAddress: string;         // string -> string
     token: string;                      // string -> string
-    amount: bigint;                     // uint256 -> bigint
+    amount: BigInt;                     // uint256 -> BigInt
     toToken: string;                    // string -> string
-    toAmount: bigint;                   // uint256 -> bigint
+    toAmount: BigInt;                   // uint256 -> BigInt
     data: Uint8Array;                   // bytes -> Uint8Array for raw byte data
 }
 
 export class SwapOrder implements SwapOrderInterface {
-    id: BigNumberish;
+    id: BigInt;
     emitter: string;
     srcNID: string;
     dstNID: string;
     creator: string;
     destinationAddress: string;
     token: string;
-    amount: bigint;
+    amount: BigInt;
     toToken: string;
-    toAmount: bigint;
+    toAmount: BigInt;
     data: Uint8Array;
 
     public PERMIT2_STRUCT = [
@@ -43,16 +43,16 @@ export class SwapOrder implements SwapOrderInterface {
     ];
 
     constructor(
-        id: bigint,
+        id: BigInt,
         emitter: string,
         srcNID: string,
         dstNID: string,
         creator: string,
         destinationAddress: string,
         token: string,
-        amount: bigint,
+        amount: BigInt,
         toToken: string,
-        toAmount: bigint,
+        toAmount: BigInt,
         data: Uint8Array
     ) {
         this.id = id;
@@ -70,16 +70,16 @@ export class SwapOrder implements SwapOrderInterface {
 
     public toData(): any[] {
         return [
-            this.id,                      // uint256 -> bigint
+            this.id,                      // uint256 -> BigInt
             this.emitter,                 // string
             this.srcNID,                  // string
             this.dstNID,                  // string
             this.creator,                 // string
             this.destinationAddress,      // string
             this.token,                   // string
-            this.amount,                  // uint256 -> bigint
+            this.amount,                  // uint256 -> BigInt
             this.toToken,                 // string
-            this.toAmount,                // uint256 -> bigint
+            this.toAmount,                // uint256 -> BigInt
             this.data                     // bytes -> Uint8Array
         ];
     }
@@ -98,6 +98,30 @@ export class SwapOrder implements SwapOrderInterface {
             toAmount: this.toAmount,
             data: this.data,
         };
+    }
+
+    public equals(other: SwapOrder): boolean {
+        return (
+            this.id === other.id &&
+            this.emitter === other.emitter &&
+            this.srcNID === other.srcNID &&
+            this.dstNID === other.dstNID &&
+            this.creator === other.creator &&
+            this.destinationAddress === other.destinationAddress &&
+            this.token === other.token &&
+            this.amount === other.amount &&
+            this.toToken === other.toToken &&
+            this.toAmount === other.toAmount &&
+            this.arrayEquals(this.data, other.data)
+        );
+    }
+
+    private arrayEquals(a: Uint8Array, b: Uint8Array): boolean {
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) {
+            if (a[i] !== b[i]) return false;
+        }
+        return true;
     }
 
 }
