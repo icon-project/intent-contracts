@@ -83,11 +83,12 @@ export class SuiIntents {
         } else {
             coin = await this.getCoin(tx, swapOrder.toToken, swapOrder.toAmount.valueOf());
         }
+        // tx.setGasBudget(100000000)
 
         tx.moveCall({
             target: `${this.packageId}::main::fill`,
             arguments: [
-                tx.object("0x20499b147e56a123670f538c77afc2a20029643f28ce6b074183c8bfcf091d22"),
+                tx.object(this.storageId),
                 tx.pure.u128(swapOrder.id.valueOf()),
                 tx.pure.string(swapOrder.emitter),
                 tx.pure.string(swapOrder.srcNID),
@@ -98,7 +99,7 @@ export class SuiIntents {
                 tx.pure.u128(swapOrder.amount.valueOf()),
                 tx.pure.string(swapOrder.toToken),
                 tx.pure.u128(swapOrder.toAmount.valueOf()),
-                tx.pure.vector('vector<u8>', []),
+                tx.pure.vector('vector<u8>', [].slice.call(swapOrder.data)),
                 tx.object(coin),
                 tx.pure.string(repayAddress),
             ],
@@ -106,12 +107,13 @@ export class SuiIntents {
         });
 
         const result = await this.client.signAndExecuteTransaction({ signer: this.keypair, transaction: tx });
+
         return result;
     }
 
     async getBalance(token: string , address: string ): Promise<BigInt> {
         const coins = await this.client.getCoins({
-            owner: this.keypair.getPublicKey().toSuiAddress(),
+            owner: address,
             coinType: token,
         });
 
@@ -133,7 +135,6 @@ export class SuiIntents {
         });
 
         const order: any = transaction.events?.at(0)?.parsedJson;
-        console.log(order)
         return new SwapOrder(
             BigInt(order.id),
             order.emitter,
