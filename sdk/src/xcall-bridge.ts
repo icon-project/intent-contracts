@@ -154,7 +154,7 @@ export class EVMAssetManager{
             "receiver": "sui/"+suiAddress
         }}
         const _data = new TextEncoder().encode(JSON.stringify(data));
-        this.assetManager.deposit(usdcAddress, amount, "cx21e94c08c03daee80c25d8ee3ea22a20786ec231", _data, {value: 60000000000000})
+        this.assetManager.deposit(usdcAddress, amount, "0x1.icon/cx21e94c08c03daee80c25d8ee3ea22a20786ec231", _data, {value: 60000000000000})
     };
 }
 
@@ -215,7 +215,7 @@ export class SuiAssetManager {
                 tx.object("0x25c200a947fd16903d9daea8e4c4b96468cf08d002394b7f1933b636e0a0d500"),
                 tx.object("0xe9ae3e2d32cdf659ad5db4219b1086cc0b375da5c4f8859c872148895a2eace2"),
                 tx.object("0x1bbf52529d14124738fac0abc1386670b7927b6d68cab7f9bd998a0c0b274042"),
-                tx.pure.string(nid),
+                tx.pure.string("0x1.icon/cx21e94c08c03daee80c25d8ee3ea22a20786ec231"),
                 tx.pure.u128(evmAddress),
                 tx.pure.vector('vector<u8>', [].slice.call(_data)),
 
