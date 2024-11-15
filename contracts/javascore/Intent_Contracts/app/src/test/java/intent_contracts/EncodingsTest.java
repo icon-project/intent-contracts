@@ -28,14 +28,6 @@ public class EncodingsTest extends TestBase {
         return byteArray;
     }
 
-    private static BigInteger pow(BigInteger base, int exponent) {
-        BigInteger result = BigInteger.ONE;
-        for (int i = 0; i < exponent; i++) {
-            result = result.multiply(base);
-        }
-        return result;
-    }
-
     public static String byteArrayToHex(byte[] byteArray) {
         StringBuilder hexString = new StringBuilder();
         for (byte b : byteArray) {
