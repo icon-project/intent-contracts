@@ -1,4 +1,4 @@
-@xcall/contracts/=./contracts/
+@intents/contracts/=./contracts/
 @iconfoundation/xcall-solidity-library/=./library/xcall/
 @xcall/utils/=./library/utils/
 ds-test/=lib/forge-std/lib/ds-test/src/
@@ -9,6 +9,3 @@ forge-std/=lib/forge-std/src/
 openzeppelin-contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/
 openzeppelin-contracts/=lib/openzeppelin-contracts/
 openzeppelin/=lib/openzeppelin-contracts-upgradeable/contracts/
-wormhole-solidity-sdk/=lib/wormhole-solidity-sdk/src/
-@lz-contracts/=lib/solidity-examples/contracts/lzApp/
-@lz-contracts/utils/=lib/solidity-examples/contracts/libraries/
