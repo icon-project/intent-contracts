@@ -66,7 +66,8 @@ impl<'a> CwIntentV1Service<'a> {
         if self.is_order_finished(deps.storage, &order_hash) {
             return Err(ContractError::OrderAlreadyComplete);
         }
-        self.set_order_finished(deps.storage, &keccak256(&order.rlp_bytes()), true).unwrap();
+        self.set_order_finished(deps.storage, &keccak256(&order.rlp_bytes()), true)
+            .unwrap();
         let mut response = self.receive_payment(
             deps.as_ref(),
             env.clone(),
@@ -120,7 +121,7 @@ impl<'a> CwIntentV1Service<'a> {
             response = response.add_message(fee_transfer);
         }
         response = response.add_event(order_fill_event);
-        
+
         Ok(response)
     }
 

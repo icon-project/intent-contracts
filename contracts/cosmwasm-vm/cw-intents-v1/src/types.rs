@@ -232,15 +232,18 @@ mod tests {
 
     #[test]
     fn test_order_cancel_encoding() {
-        let cancel= OrderCancel{
+        let cancel = OrderCancel {
             order_bytes: hex::decode("6c449988e2f33302803c93f8287dc1d8cb33848a").unwrap(),
         };
-        assert!(cancel.rlp_bytes()==hex::decode("d5946c449988e2f33302803c93f8287dc1d8cb33848a").unwrap());
+        assert!(
+            cancel.rlp_bytes()
+                == hex::decode("d5946c449988e2f33302803c93f8287dc1d8cb33848a").unwrap()
+        );
     }
 
     #[test]
-    fn test_swap_order_encoding(){
-        let order =SwapOrder {
+    fn test_swap_order_encoding() {
+        let order = SwapOrder {
             id: 1,
             emitter: "0xbe6452d4d6c61cee97d3".to_string(),
             src_nid: "Ethereum".to_string(),
@@ -255,7 +258,7 @@ mod tests {
         };
         assert!(order.rlp_bytes()==hex::decode("f8a601963078626536343532643464366336316365653937643388457468657265756d87506f6c79676f6e983078336533366564646436356532333932323265376536379c30786432633632313862383735343537613431623666623739363465a43078313433353533343065383537393132313838623766323032643535303232323438378203e89a307839316134373238623531373438346630663631306465376282038480").unwrap());
 
-        let order =SwapOrder {
+        let order = SwapOrder {
             id: 1,
             emitter: "0xbe6452d4d6c61cee97d3".to_string(),
             src_nid: "Ethereum".to_string(),
@@ -265,11 +268,9 @@ mod tests {
             token: "0x14355340e857912188b7f202d550222487".to_string(),
             amount: 100000 * 10000000000000000000000,
             to_token: "0x91a4728b517484f0f610de7b".to_string(),
-            to_amount: 900*10000000,
+            to_amount: 900 * 10000000,
             data: hex::decode("6c449988e2f33302803c93f8287dc1d8cb33848a").unwrap(),
         };
         assert!(order.rlp_bytes()==hex::decode("f8c701963078626536343532643464366336316365653937643388457468657265756d87506f6c79676f6e983078336533366564646436356532333932323265376536379c30786432633632313862383735343537613431623666623739363465a43078313433353533343065383537393132313838623766323032643535303232323438378c033b2e3c9fd0803ce80000009a3078393161343732386235313734383466306636313064653762850218711a00946c449988e2f33302803c93f8287dc1d8cb33848a").unwrap());
-
-
     }
 }
