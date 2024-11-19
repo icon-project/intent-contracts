@@ -217,7 +217,7 @@ mod tests {
             order_bytes: hex::decode("6c449988e2f33302803c93f8287dc1d8cb33848a").unwrap(),
             solver_address: "0xcb0a6bbccfccde6be9f10ae781b9d9b00d6e63".to_string(),
         };
-        assert!(fill.rlp_bytes()==hex::decode("f84301946c449988e2f33302803c93f8287dc1d8cb33848aa8307863623061366262636366636364653662653966313061653738316239643962303064366536338201f401").unwrap());
+        assert!(fill.rlp_bytes()==hex::decode("f83f01946c449988e2f33302803c93f8287dc1d8cb33848aa830786362306136626263636663636465366265396631306165373831623964396230306436653633").unwrap());
     }
 
     #[test]
@@ -227,9 +227,49 @@ mod tests {
             order_bytes: hex::decode("cb0a6bbccfccde6be9f10ae781b9d9b00d6e63").unwrap(),
             solver_address: "0x6c449988e2f33302803c93f8287dc1d8cb33848a".to_string(),
         };
-        assert!(fill.rlp_bytes()==hex::decode("f84b0293cb0a6bbccfccde6be9f10ae781b9d9b00d6e63aa3078366334343939383865326633333330323830336339336638323837646331643863623333383438618928a857425466f8000000").unwrap());
+        assert!(fill.rlp_bytes()==hex::decode("f8400293cb0a6bbccfccde6be9f10ae781b9d9b00d6e63aa307836633434393938386532663333333032383033633933663832383764633164386362333338343861").unwrap());
     }
 
     #[test]
-    fn test_order_cancel_encoding() {}
+    fn test_order_cancel_encoding() {
+        let cancel= OrderCancel{
+            order_bytes: hex::decode("6c449988e2f33302803c93f8287dc1d8cb33848a").unwrap(),
+        };
+        assert!(cancel.rlp_bytes()==hex::decode("d5946c449988e2f33302803c93f8287dc1d8cb33848a").unwrap());
+    }
+
+    #[test]
+    fn test_swap_order_encoding(){
+        let order =SwapOrder {
+            id: 1,
+            emitter: "0xbe6452d4d6c61cee97d3".to_string(),
+            src_nid: "Ethereum".to_string(),
+            dst_nid: "Polygon".to_string(),
+            creator: "0x3e36eddd65e239222e7e67".to_string(),
+            destination_address: "0xd2c6218b875457a41b6fb7964e".to_string(),
+            token: "0x14355340e857912188b7f202d550222487".to_string(),
+            amount: 1000,
+            to_token: "0x91a4728b517484f0f610de7b".to_string(),
+            to_amount: 900,
+            data: vec![],
+        };
+        assert!(order.rlp_bytes()==hex::decode("f8a601963078626536343532643464366336316365653937643388457468657265756d87506f6c79676f6e983078336533366564646436356532333932323265376536379c30786432633632313862383735343537613431623666623739363465a43078313433353533343065383537393132313838623766323032643535303232323438378203e89a307839316134373238623531373438346630663631306465376282038480").unwrap());
+
+        let order =SwapOrder {
+            id: 1,
+            emitter: "0xbe6452d4d6c61cee97d3".to_string(),
+            src_nid: "Ethereum".to_string(),
+            dst_nid: "Polygon".to_string(),
+            creator: "0x3e36eddd65e239222e7e67".to_string(),
+            destination_address: "0xd2c6218b875457a41b6fb7964e".to_string(),
+            token: "0x14355340e857912188b7f202d550222487".to_string(),
+            amount: 100000 * 10000000000000000000000,
+            to_token: "0x91a4728b517484f0f610de7b".to_string(),
+            to_amount: 900*10000000,
+            data: hex::decode("6c449988e2f33302803c93f8287dc1d8cb33848a").unwrap(),
+        };
+        assert!(order.rlp_bytes()==hex::decode("f8c701963078626536343532643464366336316365653937643388457468657265756d87506f6c79676f6e983078336533366564646436356532333932323265376536379c30786432633632313862383735343537613431623666623739363465a43078313433353533343065383537393132313838623766323032643535303232323438378c033b2e3c9fd0803ce80000009a3078393161343732386235313734383466306636313064653762850218711a00946c449988e2f33302803c93f8287dc1d8cb33848a").unwrap());
+
+
+    }
 }
