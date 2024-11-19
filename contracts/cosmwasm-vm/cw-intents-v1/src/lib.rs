@@ -9,7 +9,7 @@ use common::rlp;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, to_json_binary, Binary, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo,
-    Response, StdError, StdResult, Storage, SubMsg, WasmMsg,
+    Response, StdError, StdResult, Storage, WasmMsg,
 };
 
 use cw2::set_contract_version;
@@ -65,7 +65,7 @@ pub fn execute(
                 min_receive,
                 data,
             );
-            return call_service.swap(order, deps, env, info);
+            call_service.swap(order, deps, env, info)
         }
         ExecuteMsg::Fill {
             id,
@@ -77,9 +77,8 @@ pub fn execute(
             token,
             amount,
             to_token,
-            min_receive,
+            to_amount,
             data,
-            fill_amount,
             solver_address,
         } => {
             let order = SwapOrder {
@@ -92,10 +91,10 @@ pub fn execute(
                 token,
                 amount,
                 to_token,
-                min_receive,
+                to_amount,
                 data,
             };
-            return call_service.fill(order, fill_amount, solver_address, deps, env, info);
+            call_service.fill(order, solver_address, deps, env, info)
         }
         ExecuteMsg::RecvMessage {
             src_network,
@@ -106,7 +105,7 @@ pub fn execute(
                 rlp::decode::<OrderMsg>(&msg).map_err(|e| ContractError::DecodeError {
                     error: e.to_string(),
                 })?;
-            return call_service.receive_msg(deps, env, info, src_network, conn_sn, order_msg);
+            call_service.receive_msg(deps, env, info, src_network, conn_sn, order_msg)
         }
     }
 }

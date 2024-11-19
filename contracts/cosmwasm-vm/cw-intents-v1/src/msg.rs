@@ -29,9 +29,8 @@ pub enum ExecuteMsg {
         token: String,
         amount: u128,
         to_token: String,
-        min_receive: u128,
+        to_amount: u128,
         data: Vec<u8>,
-        fill_amount: u128,
         solver_address: String,
     },
     RecvMessage {

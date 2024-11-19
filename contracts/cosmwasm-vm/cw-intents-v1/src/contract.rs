@@ -1,11 +1,9 @@
-use std::str::from_utf8;
-
 use crate::events::create_swap_order_event;
 use common::{
-    rlp::{self, Decodable, Encodable},
+    rlp::{self, Encodable},
     utils::keccak256,
 };
-use cosmwasm_std::{to_binary, Addr, BankMsg, Coin};
+use cosmwasm_std::{Addr, BankMsg, Coin};
 use cw20::Cw20ExecuteMsg;
 use events::{
     create_order_cancelled_event, create_order_closed_event, create_order_fill_event,
@@ -53,7 +51,6 @@ impl<'a> CwIntentV1Service<'a> {
     pub fn fill(
         &self,
         order: SwapOrder,
-        fill_amount: u128,
         solver: String,
         deps: DepsMut,
         env: Env,
@@ -69,30 +66,16 @@ impl<'a> CwIntentV1Service<'a> {
         if self.is_order_finished(deps.storage, &order_hash) {
             return Err(ContractError::OrderAlreadyComplete);
         }
-
-        let mut remaining_amount = self
-            .get_pending_fill(deps.storage, &order_hash)
-            .unwrap_or(order.amount);
-
-        let payout = (order.amount * fill_amount) / order.min_receive;
-
-        if payout > remaining_amount {
-            return Err(ContractError::PayoutGreaterThanRemaining);
-        }
-
-        remaining_amount = remaining_amount - payout;
-
-        let mut close_order = false;
-        if remaining_amount == 0 {
-            self.remove_pending_fill(deps.storage, &order_hash);
-            self.set_order_finished(deps.storage, &order_hash, true)?;
-            close_order = true;
-        } else {
-            self.set_pending_fill(deps.storage, &order_hash, remaining_amount)?;
-        }
+        let mut response = self.receive_payment(
+            deps.as_ref(),
+            env.clone(),
+            info,
+            order.to_amount,
+            order.to_token.clone(),
+        )?;
 
         let protocol_fee = self.get_protocol_fee(deps.storage).unwrap_or(0);
-        let fee = (fill_amount * protocol_fee as u128) / 10000;
+        let fee = (order.to_amount * protocol_fee as u128) / 10000;
         let fee_handler = self.get_fee_handler(deps.storage)?;
 
         let fee_transfer = self.try_transfer(
@@ -107,7 +90,7 @@ impl<'a> CwIntentV1Service<'a> {
             deps.as_ref(),
             env.contract.address.to_string(),
             order.destination_address.clone(),
-            fill_amount - fee,
+            order.to_amount - fee,
             &order.to_token,
         );
 
@@ -115,13 +98,9 @@ impl<'a> CwIntentV1Service<'a> {
             id: order.id,
             order_bytes: order.rlp_bytes().to_vec(),
             solver_address: solver,
-            amount: payout,
-            closed: close_order,
         };
-        let mut response = Response::new();
 
-        let order_fill_event =
-            create_order_fill_event(&order_fill, remaining_amount, fee, fill_amount);
+        let order_fill_event = create_order_fill_event(&order_fill, fee, order.to_amount);
 
         if order.src_nid == order.dst_nid {
             response = self.resolve_fill(deps, env, order.src_nid, order_fill)?;
@@ -168,7 +147,7 @@ impl<'a> CwIntentV1Service<'a> {
                         error: e.to_string(),
                     }
                 })?;
-                return self.resolve_fill(deps, env, src_network, fill);
+                self.resolve_fill(deps, env, src_network, fill)
             }
             ORDER_CANCEL => {
                 let cancel = rlp::decode::<OrderCancel>(&order_msg.message).map_err(|e| {
@@ -176,7 +155,7 @@ impl<'a> CwIntentV1Service<'a> {
                         error: e.to_string(),
                     }
                 })?;
-                return self.resolve_cancel(deps, src_network, cancel.order_bytes);
+                self.resolve_cancel(deps, src_network, cancel.order_bytes)
             }
             _ => Err(ContractError::InvalidMessageType),
         }
@@ -198,18 +177,17 @@ impl<'a> CwIntentV1Service<'a> {
             return Err(ContractError::InvalidFillOrder);
         }
         let mut response = Response::new();
-        if fill.closed == true {
-            self.remove_order(deps.storage, order.id);
-            response = response.add_event(create_order_closed_event(order.id));
-        }
+
         let transfer = self.try_transfer(
             deps.as_ref(),
             env.contract.address.to_string(),
             fill.solver_address,
-            fill.amount,
+            order.amount,
             &order.token,
         );
-        response = response.add_message(transfer);
+        response = response
+            .add_message(transfer)
+            .add_event(create_order_closed_event(fill.id));
         Ok(response)
     }
 
@@ -232,17 +210,11 @@ impl<'a> CwIntentV1Service<'a> {
             return Err(ContractError::InvalidCancellation);
         }
 
-        let remaining_amount = self
-            .get_pending_fill(deps.storage, &order_hash)
-            .unwrap_or(order.amount);
-        self.remove_pending_fill(deps.storage, &order_hash);
         self.set_order_finished(deps.storage, &order_hash, true)?;
         let fill = OrderFill {
             id: order.id,
             order_bytes,
             solver_address: order.creator.clone(),
-            amount: remaining_amount,
-            closed: true,
         };
         let msg = OrderMsg {
             msg_type: ORDER_CANCEL,
@@ -251,8 +223,7 @@ impl<'a> CwIntentV1Service<'a> {
         let conn_sn = self.get_next_conn_sn(deps.storage)?;
         let send_event =
             create_send_message_event(order.src_nid.clone(), conn_sn, msg.rlp_bytes().to_vec());
-        let cancelled_event =
-            create_order_cancelled_event(&order, order_hash.to_vec(), remaining_amount);
+        let cancelled_event = create_order_cancelled_event(&order);
         response = response.add_event(cancelled_event);
         response = response.add_event(send_event);
 
@@ -271,9 +242,9 @@ impl<'a> CwIntentV1Service<'a> {
         if self.is_native(deps, &denom) {
             let sum: u128 = info.funds.into_iter().fold(0, |mut a, c| {
                 if c.denom == denom {
-                    a = a + Into::<u128>::into(c.amount);
+                    a += Into::<u128>::into(c.amount);
                 }
-                return a;
+                a
             });
             if sum < amount {
                 return Err(ContractError::InsufficientFunds);
@@ -319,7 +290,7 @@ impl<'a> CwIntentV1Service<'a> {
         amount: u128,
         denom: &String,
     ) -> CosmosMsg<Empty> {
-        if self.is_native(deps, &denom) {
+        if self.is_native(deps, denom) {
             let msg = BankMsg::Send {
                 to_address: deps.api.addr_validate(&to).unwrap().to_string(),
                 amount: vec![Coin {
@@ -341,10 +312,10 @@ impl<'a> CwIntentV1Service<'a> {
     }
 
     pub fn is_native(&self, deps: Deps, denom: &String) -> bool {
-        if let Some(addr) = deps.api.addr_validate(denom).ok() {
+        if let Ok(addr) = deps.api.addr_validate(denom) {
             return !self.is_contract(deps, &addr);
         }
-        return true;
+        true
     }
 
     pub fn get_next_deposit_id(&self, storage: &mut dyn Storage) -> StdResult<u128> {

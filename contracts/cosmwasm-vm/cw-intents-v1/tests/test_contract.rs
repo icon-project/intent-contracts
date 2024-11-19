@@ -1,11 +1,9 @@
 use common::rlp::Encodable;
 use cosmwasm_std::{
     testing::{mock_dependencies, mock_env, mock_info},
-    to_binary, Addr, Coin, CosmosMsg, StdError, SubMsg, Uint128, WasmMsg,
+    Addr, Coin, Uint128,
 };
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_intents_v1::{
-    errors::ContractError,
     execute, instantiate,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     query,
@@ -67,7 +65,7 @@ fn fund_account(app: &mut App, account: String, amount: u128, denom: String) {
         cw_multi_test::BankSudo::Mint {
             to_address: account,
             amount: vec![Coin {
-                denom: denom,
+                denom,
                 amount: Uint128::new(amount),
             }],
         },
@@ -82,7 +80,7 @@ fn to_swap_msg(order: &SwapOrder) -> ExecuteMsg {
         amount: order.amount,
         to_token: order.to_token.clone(),
         destination_address: order.destination_address.clone(),
-        min_receive: order.min_receive,
+        min_receive: order.to_amount,
         data: order.data.clone(),
     }
 }
@@ -138,27 +136,26 @@ fn init_cw20_contract(app: &mut App, owner: String, denom: String) -> Addr {
         cw20_base::contract::instantiate,
         cw20_base::contract::query,
     )));
-    let cw20_addr = app
-        .instantiate_contract(
-            cw20_code_id,
-            Addr::unchecked(owner.clone()),
-            &cw20_base::msg::InstantiateMsg {
-                name: "Test Token".to_string(),
-                symbol: denom,
-                decimals: 6,
-                initial_balances: vec![cw20::Cw20Coin {
-                    address: owner.to_string(),
-                    amount: Uint128::new(1000),
-                }],
-                mint: None,
-                marketing: None,
-            },
-            &[],
-            "Test Token",
-            None,
-        )
-        .unwrap();
-    cw20_addr
+
+    app.instantiate_contract(
+        cw20_code_id,
+        Addr::unchecked(owner.clone()),
+        &cw20_base::msg::InstantiateMsg {
+            name: "Test Token".to_string(),
+            symbol: denom,
+            decimals: 6,
+            initial_balances: vec![cw20::Cw20Coin {
+                address: owner.to_string(),
+                amount: Uint128::new(1000),
+            }],
+            mint: None,
+            marketing: None,
+        },
+        &[],
+        "Test Token",
+        None,
+    )
+    .unwrap()
 }
 #[test]
 fn test_swap_cw20_token() {
@@ -232,9 +229,8 @@ fn test_fill_order() {
         token: NATIVE_DENOM.to_string(),
         amount: 100,
         to_token: "to_token".to_string(),
-        min_receive: 90,
+        to_amount: 90,
         data: hex::decode("deadbeef").unwrap(),
-        fill_amount: 90,
         solver_address: USER2.to_string(),
     };
 
@@ -266,7 +262,7 @@ fn test_receive_msg() {
         token: NATIVE_DENOM.to_string(),
         amount: 100,
         to_token: "to_token".to_string(),
-        min_receive: 10,
+        to_amount: 10,
         data: hex::decode("deadbeef").unwrap(),
     };
     fund_account(&mut app, USER1.to_string(), 200, NATIVE_DENOM.to_string());
@@ -294,8 +290,6 @@ fn test_receive_msg() {
         id: 1,
         order_bytes: order.rlp_bytes().to_vec(),
         solver_address: USER2.to_string(),
-        amount: 100,
-        closed: true,
     };
 
     // Create a mock OrderMsg
@@ -405,9 +399,8 @@ fn test_fill_already_finished_order() {
         token: NATIVE_DENOM.to_string(),
         amount: 100,
         to_token: "to_token".to_string(),
-        min_receive: 90,
+        to_amount: 90,
         data: hex::decode("deadbeef").unwrap(),
-        fill_amount: 90,
         solver_address: USER2.to_string(),
     };
 
@@ -454,9 +447,8 @@ fn test_cancel_already_finished_order() {
         token: NATIVE_DENOM.to_string(),
         amount: 100,
         to_token: "to_token".to_string(),
-        min_receive: 90,
+        to_amount: 90,
         data: hex::decode("deadbeef").unwrap(),
-        fill_amount: 90,
         solver_address: USER2.to_string(),
     };
 
@@ -482,7 +474,7 @@ fn test_cancel_already_finished_order() {
         token: NATIVE_DENOM.to_string(),
         amount: 100,
         to_token: "to_token".to_string(),
-        min_receive: 90,
+        to_amount: 90,
         data: hex::decode("deadbeef").unwrap(),
     };
 

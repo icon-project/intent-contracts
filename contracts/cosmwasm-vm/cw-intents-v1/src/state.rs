@@ -10,7 +10,6 @@ pub struct CwIntentV1Service<'a> {
     protocol_fee: Item<'a, u8>,
     fee_handler: Item<'a, Addr>,
     orders: Map<'a, u128, SwapOrder>,
-    pending_fills: Map<'a, Vec<u8>, u128>,
     finished_orders: Map<'a, Vec<u8>, bool>,
     conn_sn: Item<'a, u128>,
     receipts: Map<'a, (String, u128), bool>,
@@ -31,7 +30,6 @@ impl<'a> CwIntentV1Service<'a> {
             protocol_fee: Item::new(StorageKey::ProtocolFee.as_str()),
             fee_handler: Item::new(StorageKey::FeeHandler.as_str()),
             orders: Map::new(StorageKey::Orders.as_str()),
-            pending_fills: Map::new(StorageKey::PendingFills.as_str()),
             finished_orders: Map::new(StorageKey::FinishedOrders.as_str()),
             conn_sn: Item::new(StorageKey::ConnectionSN.as_str()),
             receipts: Map::new(StorageKey::Receipts.as_str()),
@@ -61,10 +59,6 @@ impl<'a> CwIntentV1Service<'a> {
 
     pub fn get_order(&self, storage: &dyn Storage, key: u128) -> StdResult<SwapOrder> {
         self.orders.load(storage, key)
-    }
-
-    pub fn get_pending_fill(&self, storage: &dyn Storage, key: &[u8]) -> Option<u128> {
-        self.pending_fills.load(storage, key.to_vec()).ok()
     }
 
     pub fn get_conn_sn(&self, storage: &dyn Storage) -> u128 {
@@ -113,19 +107,6 @@ impl<'a> CwIntentV1Service<'a> {
         value: &SwapOrder,
     ) -> StdResult<()> {
         self.orders.save(storage, key, value)
-    }
-
-    pub fn set_pending_fill(
-        &self,
-        storage: &mut dyn Storage,
-        key: &[u8],
-        value: u128,
-    ) -> StdResult<()> {
-        self.pending_fills.save(storage, key.to_vec(), &value)
-    }
-
-    pub fn remove_pending_fill(&self, storage: &mut dyn Storage, key: &[u8]) {
-        self.pending_fills.remove(storage, key.to_vec())
     }
 
     pub fn remove_order(&self, storage: &mut dyn Storage, key: u128) {
