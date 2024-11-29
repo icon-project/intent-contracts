@@ -405,7 +405,11 @@ module intents_v1::main {
         };
         
         let order=swap_order::decode(&bytes);
-        let token_type=order.get_token();
+        let token_type=if(order.get_src_nid()==string::utf8(b"sui")){
+            order.get_token()
+        }else{
+            order.get_to_token()
+        };
 
         let mut type_args:vector<String> = vector::empty();
         type_args.push_back(token_type);
@@ -419,6 +423,9 @@ module intents_v1::main {
         Params { type_args, args }
 
 
+    }
+    public fun get_type_args(self:&Params):vector<String>{
+        self.type_args
     }
 
     entry fun get_receipt(self:&Storage,nid:String,conn_sn:u128):bool {
@@ -445,6 +452,10 @@ module intents_v1::main {
     }
     public fun get_funds(self:&Storage):&Bag {
         &self.funds
+    }
+
+    public fun get_finished_orders(self:&Storage):&Table<vector<u8>,bool> {
+        &self.finished_orders
     }
 
     public fun get_id(self:&Storage):ID {
@@ -489,6 +500,7 @@ module intents_v1::main_tests {
     use intents_v1::utils::id_to_hex_string;
     use intents_v1::main::{insert_order};
     use sui::sui::{SUI as RSUI};
+    use sui::hash::keccak256;
     use intents_v1::utils::{get_type_string,address_to_hex_string};
 
     // Test coin type
@@ -1197,5 +1209,64 @@ module intents_v1::main_tests {
             test_scenario::return_to_sender(&scenario, admin_cap);
         };
         test_scenario::end(scenario);
+    }
+
+     #[test]
+    fun test_recv_message_cancel_decoding() {
+        let admin=@0x1;
+        let mut scenario = setup_test(admin);
+        test_scenario::next_tx(&mut scenario, @0x1);
+        {
+            let mut storage = test_scenario::take_shared<Storage>(&scenario);
+            let ctx = test_scenario::ctx(&mut scenario);
+            
+           
+
+            let msg = order_message::decode(&x"f9017702b90173f90170b9016df9016a5aaa3078353345303039354335373637336643313666413346413234313462414433323030383434456331378f3078613462312e617262697472756d83737569aa307864433444373261373046396435343841463933373946343245364146383137323862326331643931b842307863656563613764623033366430373962333139333838366662656662653738663734356432313538396437363132643766346638383031663537386639343463aa307830303030303030303030303030303030303030303030303030303030303030303030303030303030872386f26fc10000b84a303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030323a3a7375693a3a5355498500b1ff400db57b2271756f74655f75756964223a2266316230306563302d666634632d343135302d616530332d353639636434376263663565227d");
+            let cancel = order_cancel::decode(&msg.get_message());
+            let order= swap_order::decode(&cancel.get_order_bytes());
+            std::debug::print(&order);
+
+            main::receive_message<USDC>(
+                &mut storage,
+                string::utf8(b"0xa4b1.arbitrum"),
+                1,
+                order_message::encode(&msg),
+                ctx
+            );
+          
+           assert!(*main::get_finished_orders(&storage).borrow<vector<u8>,bool>(keccak256(&order.encode())));
+
+            test_scenario::return_shared(storage);
+        };
+        test_scenario::end(scenario);
+    }
+
+    #[test]
+    fun test_get_relayer_params(){
+
+        let admin=@0x1;
+        let mut scenario = setup_test(admin);
+        test_scenario::next_tx(&mut scenario, @0x1);
+        {
+            let mut storage = test_scenario::take_shared<Storage>(&scenario);
+            let ctx = test_scenario::ctx(&mut scenario);
+            let msg = order_message::decode(&x"f9017702b90173f90170b9016df9016a5aaa3078353345303039354335373637336643313666413346413234313462414433323030383434456331378f3078613462312e617262697472756d83737569aa307864433444373261373046396435343841463933373946343245364146383137323862326331643931b842307863656563613764623033366430373962333139333838366662656662653738663734356432313538396437363132643766346638383031663537386639343463aa307830303030303030303030303030303030303030303030303030303030303030303030303030303030872386f26fc10000b84a303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030323a3a7375693a3a5355498500b1ff400db57b2271756f74655f75756964223a2266316230306563302d666634632d343135302d616530332d353639636434376263663565227d");
+            let cancel = order_cancel::decode(&msg.get_message());
+            let order= swap_order::decode(&cancel.get_order_bytes());
+            std::debug::print(&order);
+
+            let args= main::get_receive_msg_args(
+                &storage,
+                msg.encode()
+               
+            );
+          
+           std::debug::print(&args);
+           assert!((*args.get_type_args().borrow(0))==string::utf8(b"0000000000000000000000000000000000000000000000000000000000000002::sui::SUI"));
+           test_scenario::return_shared(storage);
+        };
+        test_scenario::end(scenario);
+
     }
 }
