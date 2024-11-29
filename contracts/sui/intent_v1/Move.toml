@@ -1,25 +1,22 @@
-
 [addresses]
-  intent_v1 = "0xcc8fb2868f09006b4c8b0699a2648fc7ecc820a8b1195f1086f7d6a78a526d17"
-  intents_v1 = "0x0"
+  intent_v1 = '0xcc8fb2868f09006b4c8b0699a2648fc7ecc820a8b1195f1086f7d6a78a526d17'
 
 [dependencies]
-
   [dependencies.Sui]
-    git = "https://github.com/MystenLabs/sui.git"
-    rev = "framework/testnet"
-    subdir = "crates/sui-framework/packages/sui-framework"
+    git = 'https://github.com/MystenLabs/sui.git'
+    rev = 'framework/testnet'
+    subdir = 'crates/sui-framework/packages/sui-framework'
 
   [dependencies.sui_rlp]
-    git = "https://github.com/icon-project/xcall-multi.git"
-    rev = "sui-xcall-testnet-deploy"
-    subdir = "contracts/sui/libs/sui_rlp"
+    git = 'https://github.com/icon-project/xcall-multi.git'
+    rev = 'sui-xcall-testnet-deploy'
+    subdir = 'contracts/sui/libs/sui_rlp'
 
 [dev-addresses]
 
 [dev-dependencies]
 
 [package]
-  edition = "2024.beta"
-  name = "intents_v1"
-  published-at = "0xcc8fb2868f09006b4c8b0699a2648fc7ecc820a8b1195f1086f7d6a78a526d17"
+  edition = '2024.beta'
+  name = 'intents_v1'
+  published-at = '0x00a548c42bcde3cdca0f60462082212621b403acdc177426573340a9d0953bf7'
