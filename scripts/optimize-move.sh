@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 # contracts
-CONTRACTS=("contracts/sui/intent_v1" "contracts/sui/libs/sui_rlp" )
+CONTRACTS=("contracts/sui/intent_v1")
 
 #cargo install --locked --git https://github.com/MystenLabs/sui.git --branch testnet sui
 start_dir=$(pwd)
