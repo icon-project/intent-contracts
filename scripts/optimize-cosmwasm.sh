@@ -9,7 +9,7 @@ RUSTC_VERS="1.78.0"
 
 MAX_WASM_SIZE=800 # 800 KB
 
-PROJECTS=("cw-xcall" "cw-xcall-lib")
+PROJECTS=("cw-intents-v1")
 
 # Install wasm-opt binary
 if ! which wasm-opt; then
@@ -47,9 +47,7 @@ done
 
 # check all generated wasm files
 
-cosmwasm-check  artifacts/archway/cw_mock_dapp.wasm
-cosmwasm-check artifacts/archway/cw_mock_dapp_multi.wasm
-cosmwasm-check  artifacts/archway/cw_xcall.wasm
+cosmwasm-check  artifacts/archway/cw_intents_v1.wasm
 
 
 # Update version
