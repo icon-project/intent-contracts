@@ -64,29 +64,33 @@ public class Intent extends GeneralizedConnection {
         owner.set(Context.getCaller());
     }
 
-    @External
-    @Payable
-    public void swap(SwapOrderData swapOrderData) {
-        Context.require(swapOrderData.token != null, "Token can't be null");
-        Context.require(Context.getCaller().toString().equals(swapOrderData.creator), "Creator must be sender");
+    // @External
+    // @Payable
+    // public void swap(SwapOrderData swapOrderData) {
+    // Context.require(swapOrderData.token != null, "Token can't be null");
+    // Context.require(Context.getCaller().toString().equals(swapOrderData.creator),
+    // "Creator must be sender");
 
-        Address token = Address.fromString(swapOrderData.token);
-        Address nativAddress = nativeAddress.get();
-        if (token.equals(nativAddress)) {
-            Context.require(Context.getValue().equals(swapOrderData.amount),
-                    "Deposit amount not equal to order amount");
-        } else {
-            Context.require(Context.getValue().equals(BigInteger.valueOf(0)),
-                    "Nativ Token Must Be Zero");
-            Context.call(token, "transfer", Context.getAddress(), swapOrderData.amount);
-        }
+    // Address token = Address.fromString(swapOrderData.token);
+    // Address nativAddress = nativeAddress.get();
+    // if (token.equals(nativAddress)) {
+    // Context.require(Context.getValue().equals(swapOrderData.amount),
+    // "Deposit amount not equal to order amount");
+    // } else {
+    // Context.require(Context.getValue().equals(BigInteger.valueOf(0)),
+    // "Nativ Token Must Be Zero");
+    // Context.call(token, "transfer", Context.getAddress(), swapOrderData.amount);
+    // }
 
-        SwapOrder swapOrder = new SwapOrder(swapOrderData.id, swapOrderData.emitter, swapOrderData.srcNID,
-                swapOrderData.dstNID, swapOrderData.creator, swapOrderData.destinationAddress, swapOrderData.token,
-                swapOrderData.amount, swapOrderData.toToken, swapOrderData.toAmount, swapOrderData.data);
+    // SwapOrder swapOrder = new SwapOrder(swapOrderData.id, swapOrderData.emitter,
+    // swapOrderData.srcNID,
+    // swapOrderData.dstNID, swapOrderData.creator,
+    // swapOrderData.destinationAddress, swapOrderData.token,
+    // swapOrderData.amount, swapOrderData.toToken, swapOrderData.toAmount,
+    // swapOrderData.data);
 
-        _swap(swapOrder);
-    }
+    // _swap(swapOrder);
+    // }
 
     void _swap(SwapOrder swapOrder) {
         BigInteger id = this.depositId.getOrDefault(BigInteger.ZERO).add(BigInteger.valueOf(1));
@@ -232,6 +236,16 @@ public class Intent extends GeneralizedConnection {
         Context.transfer(to, amount);
     }
 
+    public static byte[] hexStringToByteArray(String s) {
+        int len = s.length();
+        byte[] data = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
+                    + Character.digit(s.charAt(i + 1), 16));
+        }
+        return data;
+    }
+
     @External
     public void tokenFallback(Address _from, BigInteger _value, byte[] _data) {
         Context.require(_value.compareTo(BigInteger.ZERO) > 0, "Zero transfers not allowed");
@@ -246,6 +260,25 @@ public class Intent extends GeneralizedConnection {
         BigInteger amount = jsonObject.getBigInteger("amount");
 
         deposit.at(depositor).set(token, amount);
+
+        SwapOrder swapOrder = SwapOrder
+                .fromBytes(hexStringToByteArray(jsonObject.get("swapOrderDataBytes").toString()));
+        Context.require(amount.equals(swapOrder.getAmount()), "Token amount must be equal");
+        Context.require(swapOrder.getToken() != null, "Token can't be null");
+        Context.require(Context.getCaller().toString().equals(swapOrder.getCreator()),
+                "Creator must be sender");
+
+        Address swapOrderToken = Address.fromString(swapOrder.getToken());
+        Address nativAddress = nativeAddress.get();
+        if (swapOrderToken.equals(nativAddress)) {
+            Context.require(Context.getValue().equals(swapOrder.getAmount()),
+                    "Deposit amount not equal to order amount");
+        } else {
+            Context.require(Context.getValue().equals(BigInteger.valueOf(0)),
+                    "Nativ Token Must Be Zero");
+            Context.call(swapOrderToken, "transfer", Context.getAddress(), swapOrder.getAmount());
+        }
+        _swap(swapOrder);
     }
 
     @External
