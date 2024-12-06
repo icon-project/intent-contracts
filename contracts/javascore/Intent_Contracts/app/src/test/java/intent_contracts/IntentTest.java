@@ -15,11 +15,13 @@ import network.icon.intent.structs.SwapOrder;
 import network.icon.intent.utils.SwapOrderData;
 import score.Context;
 
+import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import score.UserRevertedException;
 
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 
 import static java.math.BigInteger.TEN;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -630,4 +632,47 @@ public class IntentTest extends TestBase {
         assertEquals("Reverted(0): Not Owner", exception.getMessage());
     }
 
+    @Test
+    public void testTokenFallback() {
+        when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(totalSupply);
+
+        SwapOrder swapOrder = new SwapOrder(BigInteger.valueOf(1), intent.getAddress().toString(), srcNid,
+                destinationNetwork, user1.getAddress().toString(), user2.getAddress().toString(),
+                token.tokenContract.getAddress().toString(), amount, toToken, toAmount, data);
+
+        String depositor = user1.getAddress().toString();
+        byte[] swapOrderDataBytes = swapOrder.toBytes();
+
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("depositor", depositor);
+        jsonObject.put("token", token.tokenContract.getAddress().toString());
+        jsonObject.put("amount", amount);
+        jsonObject.put("swapOrderDataBytes", bytesToHex(swapOrderDataBytes).toString());
+
+        byte[] finalData = jsonObjectToByteArray(jsonObject);
+
+        intent.invoke(user1, "tokenFallback", user1.getAddress(), amount, finalData);
+
+         BigInteger depositedAmount = (BigInteger) intent.call("getDepositAmount",
+         user1.getAddress().toString(),
+         token.tokenContract.getAddress().toString());
+         assertEquals(amount, depositedAmount);
+    }
+
+    public static String bytesToHex(byte[] bytes) {
+        StringBuilder hexString = new StringBuilder(2 * bytes.length);
+        for (byte b : bytes) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) {
+                hexString.append('0');
+            }
+            hexString.append(hex);
+        }
+        return hexString.toString();
+    }
+
+    public static byte[] jsonObjectToByteArray(JSONObject jsonObject) {
+        String jsonString = jsonObject.toString();
+        return jsonString.getBytes(StandardCharsets.UTF_8);
+    }
 }
