@@ -8,13 +8,12 @@ import network.icon.intent.structs.Cancel;
 import network.icon.intent.structs.OrderFill;
 import network.icon.intent.structs.OrderMessage;
 import network.icon.intent.structs.SwapOrder;
-import network.icon.intent.utils.PermitTransferFromData;
-import network.icon.intent.utils.SignatureTransferDetailsData;
 import network.icon.intent.utils.SwapOrderData;
 import score.*;
 import score.annotation.EventLog;
 import score.annotation.External;
 import score.annotation.Payable;
+import org.json.JSONObject;
 
 public class Intent extends GeneralizedConnection {
 
@@ -24,11 +23,10 @@ public class Intent extends GeneralizedConnection {
     public static final VarDB<Address> feeHandler = Context.newVarDB(Constant.FEE_HANDLER, Address.class);
     public static final VarDB<Address> owner = Context.newVarDB(Constant.OWNER, Address.class);
     public final VarDB<Address> nativeAddress = Context.newVarDB(Constant.NATIVE_ADDRESS, Address.class);
-    final static BranchDB<Address, DictDB<Address, BigInteger>> deposit = Context.newBranchDB(Constant.DEPOSIT,
+    final static BranchDB<String, DictDB<String, BigInteger>> deposit = Context.newBranchDB(Constant.DEPOSIT,
             BigInteger.class);
     final static DictDB<BigInteger, SwapOrder> orders = Context.newDictDB(Constant.ORDERS, SwapOrder.class);
     final static DictDB<byte[], Boolean> finishedOrders = Context.newDictDB(Constant.FINISHED_ORDERS, Boolean.class);
-    public final VarDB<PermitTransferFromData> permit = Context.newVarDB(Constant.PERMIT, PermitTransferFromData.class);
 
     @EventLog(indexed = 3)
     public void SwapIntent(
@@ -86,42 +84,6 @@ public class Intent extends GeneralizedConnection {
         SwapOrder swapOrder = new SwapOrder(swapOrderData.id, swapOrderData.emitter, swapOrderData.srcNID,
                 swapOrderData.dstNID, swapOrderData.creator, swapOrderData.destinationAddress, swapOrderData.token,
                 swapOrderData.amount, swapOrderData.toToken, swapOrderData.toAmount, swapOrderData.data);
-
-        _swap(swapOrder);
-    }
-
-    @External
-    public void swapPermit2(
-            SwapOrderData order,
-            byte[] signature,
-            PermitTransferFromData permit) {
-        Permit2 permit2 = new Permit2();
-        order.id = BigInteger.ZERO;
-
-        SignatureTransferDetailsData transferDetails = new SignatureTransferDetailsData();
-        transferDetails.to = Context.getAddress();
-        transferDetails.requestedAmount = order.amount;
-
-        permit2.permitWitnessTransferFrom(
-                permit,
-                transferDetails,
-                Address.fromString(order.creator),
-                Context.hash("keccak-256", order.data.getBytes()),
-                "",
-                signature);
-
-        SwapOrder swapOrder = new SwapOrder(
-                order.id,
-                order.emitter,
-                order.srcNID,
-                order.dstNID,
-                order.creator,
-                order.destinationAddress,
-                order.token,
-                order.amount,
-                order.toToken,
-                order.toAmount,
-                order.data);
 
         _swap(swapOrder);
     }
@@ -271,12 +233,19 @@ public class Intent extends GeneralizedConnection {
     }
 
     @External
-    public void setPermit(PermitTransferFromData _permit) {
-        permit.set(_permit);
-    }
+    public void tokenFallback(Address _from, BigInteger _value, byte[] _data) {
+        Context.require(_value.compareTo(BigInteger.ZERO) > 0, "Zero transfers not allowed");
+        String unpackedData = new String(_data);
+        Context.require(!unpackedData.equals(""), "Token Fallback: Data can't be empty");
 
-    @Payable
-    public void fallback() {
+        JSONObject jsonObject = new JSONObject(unpackedData);
+        // string(address of depositer) -> string (deposits token address) -> amount of
+        // token
+        String depositor = jsonObject.get("depositor").toString();
+        String token = jsonObject.get("token").toString();
+        BigInteger amount = jsonObject.getBigInteger("amount");
+
+        deposit.at(depositor).set(token, amount);
     }
 
     @External
@@ -306,6 +275,10 @@ public class Intent extends GeneralizedConnection {
 
     public static Boolean getFinishedorders(byte[] messageHash) {
         return finishedOrders.getOrDefault(messageHash, false);
+    }
+
+    public static BigInteger getDepositAmount(String depositer, String token) {
+        return deposit.at(depositer).getOrDefault(token, BigInteger.ZERO);
     }
 
     static void OnlyOwner() {
