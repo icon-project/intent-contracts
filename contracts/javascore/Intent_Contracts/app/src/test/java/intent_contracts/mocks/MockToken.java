@@ -29,10 +29,6 @@ public class MockToken {
         when(tokenContract.mock.totalSupply()).thenReturn(totalSupply);
         when(tokenContract.mock.balanceOf(any(Address.class))).thenReturn(BigInteger.ZERO);
         when(tokenContract.mock.transfer(any(Address.class), any(BigInteger.class))).thenReturn(true);
-        when(tokenContract.mock.approve(any(Address.class), any(BigInteger.class))).thenReturn(true);
-        when(tokenContract.mock.allowance(any(Address.class), any(Address.class))).thenReturn(BigInteger.ZERO);
-        when(tokenContract.mock.transferFrom(any(Address.class), any(Address.class), any(BigInteger.class)))
-                .thenReturn(true);
     }
 
     private static BigInteger pow(BigInteger base, int exponent) {

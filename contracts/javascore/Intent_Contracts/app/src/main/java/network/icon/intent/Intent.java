@@ -64,33 +64,33 @@ public class Intent extends GeneralizedConnection {
         owner.set(Context.getCaller());
     }
 
-    // @External
-    // @Payable
-    // public void swap(SwapOrderData swapOrderData) {
-    // Context.require(swapOrderData.token != null, "Token can't be null");
-    // Context.require(Context.getCaller().toString().equals(swapOrderData.creator),
-    // "Creator must be sender");
+    @External
+    @Payable
+    public void swap(SwapOrderData swapOrderData) {
+        Context.require(swapOrderData.token != null, "Token can't be null");
+        Context.require(Context.getCaller().toString().equals(swapOrderData.creator),
+                "Creator must be sender");
 
-    // Address token = Address.fromString(swapOrderData.token);
-    // Address nativAddress = nativeAddress.get();
-    // if (token.equals(nativAddress)) {
-    // Context.require(Context.getValue().equals(swapOrderData.amount),
-    // "Deposit amount not equal to order amount");
-    // } else {
-    // Context.require(Context.getValue().equals(BigInteger.valueOf(0)),
-    // "Nativ Token Must Be Zero");
-    // Context.call(token, "transfer", Context.getAddress(), swapOrderData.amount);
-    // }
+        Address token = Address.fromString(swapOrderData.token);
+        Address nativAddress = nativeAddress.get();
+        if (token.equals(nativAddress)) {
+            Context.require(Context.getValue().equals(swapOrderData.amount),
+                    "Deposit amount not equal to order amount");
+        } else {
+            Context.require(Context.getValue().equals(BigInteger.valueOf(0)),
+                    "Nativ Token Must Be Zero");
+            Context.call(token, "transfer", Context.getAddress(), swapOrderData.amount);
+        }
 
-    // SwapOrder swapOrder = new SwapOrder(swapOrderData.id, swapOrderData.emitter,
-    // swapOrderData.srcNID,
-    // swapOrderData.dstNID, swapOrderData.creator,
-    // swapOrderData.destinationAddress, swapOrderData.token,
-    // swapOrderData.amount, swapOrderData.toToken, swapOrderData.toAmount,
-    // swapOrderData.data);
+        SwapOrder swapOrder = new SwapOrder(swapOrderData.id, swapOrderData.emitter,
+                swapOrderData.srcNID,
+                swapOrderData.dstNID, swapOrderData.creator,
+                swapOrderData.destinationAddress, swapOrderData.token,
+                swapOrderData.amount, swapOrderData.toToken, swapOrderData.toAmount,
+                swapOrderData.data);
 
-    // _swap(swapOrder);
-    // }
+        _swap(swapOrder);
+    }
 
     void _swap(SwapOrder swapOrder) {
         BigInteger id = this.depositId.getOrDefault(BigInteger.ZERO).add(BigInteger.valueOf(1));

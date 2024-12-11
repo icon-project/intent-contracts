@@ -41,15 +41,22 @@ public class IntentTest extends TestBase {
     private static Score intent;
     private MockToken token;
 
-    private final String srcNid = "Network-1";
-    private final String destinationNetwork = "Network-2";
-    private final String toToken = "0x7891";
-    private final BigInteger amount = BigInteger.valueOf(500).multiply(TEN.pow(18));
-    private final BigInteger toAmount = BigInteger.valueOf(400).multiply(TEN.pow(18));
-    private final String data = "";
     private final BigInteger protocolFee = BigInteger.valueOf(50);
     private static final BigInteger initialSupply = BigInteger.valueOf(1000);
     private static final BigInteger totalSupply = initialSupply.multiply(TEN.pow(18));
+
+    // swapOrderData
+    public final BigInteger id = BigInteger.ONE;
+    public String emitter;
+    public String srcNID = "Network-1";
+    public String dstNID = "Network-2";
+    public String creator;
+    public String destinationAddress;
+    public String swapToken;
+    public BigInteger amount = BigInteger.valueOf(500).multiply(TEN.pow(18));
+    public String toToken = "0x7891"; // Token to receive on the destination network
+    public BigInteger toAmount = BigInteger.valueOf(400).multiply(TEN.pow(18));
+    public String data = "";
 
     @BeforeEach
     void setup() throws Exception {
@@ -82,21 +89,26 @@ public class IntentTest extends TestBase {
         assertEquals(BigInteger.ZERO, token.tokenContract.mock.balanceOf(deployer.getAddress()));
 
         // Create SwapOrderData and set the required parameters
-        SwapOrderData swapOrder = new SwapOrderData();
-        swapOrder.id = BigInteger.valueOf(1);
-        swapOrder.emitter = intent.getAddress().toString();
-        swapOrder.srcNID = srcNid;
-        swapOrder.dstNID = destinationNetwork;
-        swapOrder.creator = user1.getAddress().toString();
-        swapOrder.destinationAddress = user2.getAddress().toString();
-        swapOrder.token = token.tokenContract.getAddress().toString();
-        swapOrder.amount = amount;
-        swapOrder.toToken = toToken;
-        swapOrder.toAmount = toAmount;
-        swapOrder.data = data;
+        creator = user1.getAddress().toString();
+        swapToken = token.tokenContract.getAddress().toString();
+        emitter = intent.getAddress().toString();
+        destinationAddress = user2.getAddress().toString();
+        SwapOrder swapOrder = new SwapOrder(id, emitter, srcNID,
+                dstNID, creator, destinationAddress,
+                swapToken, amount, toToken, toAmount, data);
 
-        // Invoke the swap function on the Intent contract
-        intent.invoke(user1, "swap", swapOrder);
+        String depositor = user1.getAddress().toString();
+        byte[] swapOrderDataBytes = swapOrder.toBytes();
+
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("depositor", depositor);
+        jsonObject.put("token", token.tokenContract.getAddress().toString());
+        jsonObject.put("amount", amount);
+        jsonObject.put("swapOrderDataBytes", bytesToHex(swapOrderDataBytes).toString());
+
+        byte[] finalData = jsonObjectToByteArray(jsonObject);
+
+        intent.invoke(user1, "tokenFallback", user1.getAddress(), amount, finalData);
 
         // Simulate token balance changes post-swap
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(totalSupply.subtract(amount));
@@ -111,22 +123,30 @@ public class IntentTest extends TestBase {
     void testSwapInvalidCreator() {
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(totalSupply);
 
-        SwapOrderData swapOrder = new SwapOrderData();
-        swapOrder.id = BigInteger.valueOf(1);
-        swapOrder.emitter = intent.getAddress().toString();
-        swapOrder.srcNID = srcNid;
-        swapOrder.dstNID = destinationNetwork;
-        swapOrder.creator = intent.getAddress().toString();
-        swapOrder.destinationAddress = user2.getAddress().toString();
-        swapOrder.token = token.tokenContract.getAddress().toString();
-        swapOrder.amount = amount;
-        swapOrder.toToken = toToken;
-        swapOrder.toAmount = toAmount;
-        swapOrder.data = data;
+        creator = intent.getAddress().toString();
+        swapToken = token.tokenContract.getAddress().toString();
+        emitter = intent.getAddress().toString();
+        destinationAddress = user2.getAddress().toString();
+        SwapOrder swapOrder = new SwapOrder(id, emitter, srcNID,
+                dstNID, creator, destinationAddress,
+                swapToken, amount, toToken, toAmount, data);
 
-        UserRevertedException exception = assertThrows(UserRevertedException.class, () -> {
-            intent.invoke(deployer, "swap", swapOrder); // This should revert
-        });
+        String depositor = user1.getAddress().toString();
+        byte[] swapOrderDataBytes = swapOrder.toBytes();
+
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("depositor", depositor);
+        jsonObject.put("token", token.tokenContract.getAddress().toString());
+        jsonObject.put("amount", amount);
+        jsonObject.put("swapOrderDataBytes",
+                bytesToHex(swapOrderDataBytes).toString());
+
+        byte[] finalData = jsonObjectToByteArray(jsonObject);
+
+        UserRevertedException exception = assertThrows(UserRevertedException.class,
+                () -> {
+                    intent.invoke(user1, "tokenFallback", user1.getAddress(), amount, finalData); // This should revert
+                });
 
         assertEquals("Reverted(0): Creator must be sender", exception.getMessage());
     }
@@ -135,22 +155,31 @@ public class IntentTest extends TestBase {
     void testSwapInvalidSrcNid() {
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(totalSupply);
 
-        SwapOrderData swapOrder = new SwapOrderData();
-        swapOrder.id = BigInteger.valueOf(1);
-        swapOrder.emitter = intent.getAddress().toString();
-        swapOrder.srcNID = "dummy";
-        swapOrder.dstNID = destinationNetwork;
-        swapOrder.creator = deployer.getAddress().toString();
-        swapOrder.destinationAddress = user2.getAddress().toString();
-        swapOrder.token = token.tokenContract.getAddress().toString();
-        swapOrder.amount = amount;
-        swapOrder.toToken = toToken;
-        swapOrder.toAmount = toAmount;
-        swapOrder.data = data;
+        creator = user1.getAddress().toString();
+        swapToken = token.tokenContract.getAddress().toString();
+        emitter = intent.getAddress().toString();
+        destinationAddress = user2.getAddress().toString();
+        srcNID = "dummy";
+        SwapOrder swapOrder = new SwapOrder(id, emitter, srcNID,
+                dstNID, creator, destinationAddress,
+                swapToken, amount, toToken, toAmount, data);
 
-        UserRevertedException exception = assertThrows(UserRevertedException.class, () -> {
-            intent.invoke(deployer, "swap", swapOrder);
-        });
+        String depositor = user1.getAddress().toString();
+        byte[] swapOrderDataBytes = swapOrder.toBytes();
+
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("depositor", depositor);
+        jsonObject.put("token", token.tokenContract.getAddress().toString());
+        jsonObject.put("amount", amount);
+        jsonObject.put("swapOrderDataBytes",
+                bytesToHex(swapOrderDataBytes).toString());
+
+        byte[] finalData = jsonObjectToByteArray(jsonObject);
+
+        UserRevertedException exception = assertThrows(UserRevertedException.class,
+                () -> {
+                    intent.invoke(user1, "tokenFallback", user1.getAddress(), amount, finalData);
+                });
 
         assertEquals("Reverted(0): NID is misconfigured", exception.getMessage());
     }
@@ -159,24 +188,33 @@ public class IntentTest extends TestBase {
     void testSwapInvalidEmitter() {
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(totalSupply);
 
-        SwapOrderData swapOrder = new SwapOrderData();
-        swapOrder.id = BigInteger.valueOf(1);
-        swapOrder.emitter = user1.getAddress().toString();
-        swapOrder.srcNID = srcNid;
-        swapOrder.dstNID = destinationNetwork;
-        swapOrder.creator = deployer.getAddress().toString();
-        swapOrder.destinationAddress = user2.getAddress().toString();
-        swapOrder.token = token.tokenContract.getAddress().toString();
-        swapOrder.amount = amount;
-        swapOrder.toToken = toToken;
-        swapOrder.toAmount = toAmount;
-        swapOrder.data = data;
+        creator = user1.getAddress().toString();
+        swapToken = token.tokenContract.getAddress().toString();
+        emitter = user1.getAddress().toString();
+        destinationAddress = user2.getAddress().toString();
+        SwapOrder swapOrder = new SwapOrder(id, emitter, srcNID,
+                dstNID, creator, destinationAddress,
+                swapToken, amount, toToken, toAmount, data);
 
-        UserRevertedException exception = assertThrows(UserRevertedException.class, () -> {
-            intent.invoke(deployer, "swap", swapOrder);
-        });
+        String depositor = user1.getAddress().toString();
+        byte[] swapOrderDataBytes = swapOrder.toBytes();
 
-        assertEquals("Reverted(0): Emitter specified is not this", exception.getMessage());
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("depositor", depositor);
+        jsonObject.put("token", token.tokenContract.getAddress().toString());
+        jsonObject.put("amount", amount);
+        jsonObject.put("swapOrderDataBytes",
+                bytesToHex(swapOrderDataBytes).toString());
+
+        byte[] finalData = jsonObjectToByteArray(jsonObject);
+
+        UserRevertedException exception = assertThrows(UserRevertedException.class,
+                () -> {
+                    intent.invoke(user1, "tokenFallback", user1.getAddress(), amount, finalData);
+                });
+
+        assertEquals("Reverted(0): Emitter specified is not this",
+                exception.getMessage());
     }
 
     @Test
@@ -186,43 +224,62 @@ public class IntentTest extends TestBase {
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(BigInteger.ZERO);
         when(token.tokenContract.mock.balanceOf(user2.getAddress())).thenReturn(BigInteger.ZERO);
 
-        assertEquals(totalSupply, token.tokenContract.mock.balanceOf(deployer.getAddress()));
+        assertEquals(totalSupply,
+                token.tokenContract.mock.balanceOf(deployer.getAddress()));
 
-        boolean success = token.tokenContract.mock.transfer(user1.getAddress(), totalSupply);
+        boolean success = token.tokenContract.mock.transfer(user1.getAddress(),
+                totalSupply);
         assertTrue(success);
 
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(totalSupply);
-        assertEquals(totalSupply, token.tokenContract.mock.balanceOf(user1.getAddress()));
+        assertEquals(totalSupply,
+                token.tokenContract.mock.balanceOf(user1.getAddress()));
         when(token.tokenContract.mock.balanceOf(deployer.getAddress())).thenReturn(BigInteger.ZERO);
-        assertEquals(BigInteger.ZERO, token.tokenContract.mock.balanceOf(deployer.getAddress()));
+        assertEquals(BigInteger.ZERO,
+                token.tokenContract.mock.balanceOf(deployer.getAddress()));
 
-        SwapOrderData swapOrderData = new SwapOrderData();
-        swapOrderData.id = BigInteger.valueOf(1);
-        swapOrderData.emitter = intent.getAddress().toString();
-        swapOrderData.srcNID = srcNid;
-        swapOrderData.dstNID = destinationNetwork;
-        swapOrderData.creator = user1.getAddress().toString();
-        swapOrderData.destinationAddress = user2.getAddress().toString();
-        swapOrderData.token = token.tokenContract.getAddress().toString();
-        swapOrderData.amount = amount;
-        swapOrderData.toToken = token.tokenContract.getAddress().toString();
-        swapOrderData.toAmount = toAmount;
-        swapOrderData.data = data;
+        creator = user1.getAddress().toString();
+        swapToken = token.tokenContract.getAddress().toString();
+        emitter = intent.getAddress().toString();
+        destinationAddress = user2.getAddress().toString();
+        toToken = swapToken;
+        SwapOrder swapOrder = new SwapOrder(id, emitter, srcNID,
+                dstNID, creator, destinationAddress,
+                swapToken, amount, toToken, toAmount, data);
 
-        intent.invoke(user1, "swap", swapOrderData);
+        String depositor = user1.getAddress().toString();
+        byte[] swapOrderDataBytes = swapOrder.toBytes();
+
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("depositor", depositor);
+        jsonObject.put("token", token.tokenContract.getAddress().toString());
+        jsonObject.put("amount", amount);
+        jsonObject.put("swapOrderDataBytes", bytesToHex(swapOrderDataBytes).toString());
+
+        byte[] finalData = jsonObjectToByteArray(jsonObject);
+
+        intent.invoke(user1, "tokenFallback", user1.getAddress(), amount, finalData);
 
         when(token.tokenContract.mock.balanceOf(solver.getAddress())).thenReturn(totalSupply);
 
         token.tokenContract.mock.approve(intent.getAddress(), amount);
 
-        when(token.tokenContract.mock.allowance(user1.getAddress(), intent.getAddress())).thenReturn(amount);
+        when(token.tokenContract.mock.allowance(user1.getAddress(),
+                intent.getAddress())).thenReturn(amount);
 
-        // SwapOrder swapOrder = new SwapOrder(
-        // swapOrderData.id, swapOrderData.emitter, swapOrderData.srcNID,
-        // swapOrderData.dstNID, swapOrderData.creator,
-        // swapOrderData.destinationAddress,
-        // swapOrderData.token, swapOrderData.amount, swapOrderData.toToken,
-        // swapOrderData.toAmount, swapOrderData.data);
+        // Create SwapOrderData and set the required parameters
+        SwapOrderData swapOrderData = new SwapOrderData();
+        swapOrderData.id = swapOrder.id;
+        swapOrderData.emitter = swapOrder.emitter;
+        swapOrderData.srcNID = swapOrder.srcNID;
+        swapOrderData.dstNID = swapOrder.dstNID;
+        swapOrderData.creator = swapOrder.creator;
+        swapOrderData.destinationAddress = swapOrder.destinationAddress;
+        swapOrderData.token = swapOrder.token;
+        swapOrderData.amount = swapOrder.amount;
+        swapOrderData.toToken = swapOrder.toToken;
+        swapOrderData.toAmount = swapOrder.toAmount;
+        swapOrderData.data = swapOrder.data;
 
         // OrderFill orderFill = new OrderFill(swapOrder.id, swapOrder.toBytes(),
         // solver.getAddress().toString());
@@ -239,36 +296,48 @@ public class IntentTest extends TestBase {
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(BigInteger.ZERO);
         when(token.tokenContract.mock.balanceOf(user2.getAddress())).thenReturn(BigInteger.ZERO);
 
-        assertEquals(totalSupply, token.tokenContract.mock.balanceOf(deployer.getAddress()));
+        assertEquals(totalSupply,
+                token.tokenContract.mock.balanceOf(deployer.getAddress()));
 
-        boolean success = token.tokenContract.mock.transfer(user1.getAddress(), totalSupply);
+        boolean success = token.tokenContract.mock.transfer(user1.getAddress(),
+                totalSupply);
         assertTrue(success);
 
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(totalSupply);
-        assertEquals(totalSupply, token.tokenContract.mock.balanceOf(user1.getAddress()));
+        assertEquals(totalSupply,
+                token.tokenContract.mock.balanceOf(user1.getAddress()));
         when(token.tokenContract.mock.balanceOf(deployer.getAddress())).thenReturn(BigInteger.ZERO);
-        assertEquals(BigInteger.ZERO, token.tokenContract.mock.balanceOf(deployer.getAddress()));
+        assertEquals(BigInteger.ZERO,
+                token.tokenContract.mock.balanceOf(deployer.getAddress()));
 
-        SwapOrderData swapOrderData = new SwapOrderData();
-        swapOrderData.id = BigInteger.valueOf(1);
-        swapOrderData.emitter = intent.getAddress().toString();
-        swapOrderData.srcNID = srcNid;
-        swapOrderData.dstNID = destinationNetwork;
-        swapOrderData.creator = user1.getAddress().toString();
-        swapOrderData.destinationAddress = user2.getAddress().toString();
-        swapOrderData.token = token.tokenContract.getAddress().toString();
-        swapOrderData.amount = amount;
-        swapOrderData.toToken = token.tokenContract.getAddress().toString();
-        swapOrderData.toAmount = toAmount;
-        swapOrderData.data = data;
+        creator = user1.getAddress().toString();
+        swapToken = token.tokenContract.getAddress().toString();
+        emitter = intent.getAddress().toString();
+        destinationAddress = user2.getAddress().toString();
+        toToken = swapToken;
+        SwapOrder swapOrder = new SwapOrder(id, emitter, srcNID,
+                dstNID, creator, destinationAddress,
+                swapToken, amount, toToken, toAmount, data);
 
-        intent.invoke(user1, "swap", swapOrderData);
+        String depositor = user1.getAddress().toString();
+        byte[] swapOrderDataBytes = swapOrder.toBytes();
+
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("depositor", depositor);
+        jsonObject.put("token", token.tokenContract.getAddress().toString());
+        jsonObject.put("amount", amount);
+        jsonObject.put("swapOrderDataBytes", bytesToHex(swapOrderDataBytes).toString());
+
+        byte[] finalData = jsonObjectToByteArray(jsonObject);
+
+        intent.invoke(user1, "tokenFallback", user1.getAddress(), amount, finalData);
 
         when(token.tokenContract.mock.balanceOf(solver.getAddress())).thenReturn(totalSupply);
 
         token.tokenContract.mock.approve(intent.getAddress(), amount);
 
-        when(token.tokenContract.mock.allowance(user1.getAddress(), intent.getAddress())).thenReturn(amount);
+        when(token.tokenContract.mock.allowance(user1.getAddress(),
+                intent.getAddress())).thenReturn(amount);
 
         // SwapOrder swapOrder = new SwapOrder(
         // swapOrderData.id, swapOrderData.emitter, swapOrderData.srcNID,
@@ -282,13 +351,29 @@ public class IntentTest extends TestBase {
         // OrderMessage orderMessage = new OrderMessage(BigInteger.valueOf(1),
         // orderFill.toBytes());
 
+        // Create SwapOrderData and set the required parameters
+        SwapOrderData swapOrderData = new SwapOrderData();
+        swapOrderData.id = swapOrder.id;
+        swapOrderData.emitter = swapOrder.emitter;
+        swapOrderData.srcNID = swapOrder.srcNID;
+        swapOrderData.dstNID = swapOrder.dstNID;
+        swapOrderData.creator = swapOrder.creator;
+        swapOrderData.destinationAddress = swapOrder.destinationAddress;
+        swapOrderData.token = swapOrder.token;
+        swapOrderData.amount = swapOrder.amount;
+        swapOrderData.toToken = swapOrder.toToken;
+        swapOrderData.toAmount = swapOrder.toAmount;
+        swapOrderData.data = swapOrder.data;
+
         intent.invoke(user1, "fill", swapOrderData, solver.getAddress().toString());
 
-        UserRevertedException exception = assertThrows(UserRevertedException.class, () -> {
-            intent.invoke(user1, "fill", swapOrderData, solver.getAddress().toString());
-        });
+        UserRevertedException exception = assertThrows(UserRevertedException.class,
+                () -> {
+                    intent.invoke(user1, "fill", swapOrderData, solver.getAddress().toString());
+                });
 
-        assertEquals("Reverted(0): Order has already been filled", exception.getMessage());
+        assertEquals("Reverted(0): Order has already been filled",
+                exception.getMessage());
     }
 
     @Test
@@ -297,36 +382,49 @@ public class IntentTest extends TestBase {
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(BigInteger.ZERO);
         when(token.tokenContract.mock.balanceOf(user2.getAddress())).thenReturn(BigInteger.ZERO);
 
-        assertEquals(totalSupply, token.tokenContract.mock.balanceOf(deployer.getAddress()));
+        assertEquals(totalSupply,
+                token.tokenContract.mock.balanceOf(deployer.getAddress()));
 
-        boolean success = token.tokenContract.mock.transfer(user1.getAddress(), totalSupply);
+        boolean success = token.tokenContract.mock.transfer(user1.getAddress(),
+                totalSupply);
         assertTrue(success);
 
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(totalSupply);
-        assertEquals(totalSupply, token.tokenContract.mock.balanceOf(user1.getAddress()));
+        assertEquals(totalSupply,
+                token.tokenContract.mock.balanceOf(user1.getAddress()));
         when(token.tokenContract.mock.balanceOf(deployer.getAddress())).thenReturn(BigInteger.ZERO);
-        assertEquals(BigInteger.ZERO, token.tokenContract.mock.balanceOf(deployer.getAddress()));
+        assertEquals(BigInteger.ZERO,
+                token.tokenContract.mock.balanceOf(deployer.getAddress()));
 
-        SwapOrderData swapOrderData = new SwapOrderData();
-        swapOrderData.id = BigInteger.valueOf(1);
-        swapOrderData.emitter = intent.getAddress().toString();
-        swapOrderData.srcNID = srcNid;
-        swapOrderData.dstNID = srcNid;
-        swapOrderData.creator = user1.getAddress().toString();
-        swapOrderData.destinationAddress = user2.getAddress().toString();
-        swapOrderData.token = token.tokenContract.getAddress().toString();
-        swapOrderData.amount = amount;
-        swapOrderData.toToken = token.tokenContract.getAddress().toString();
-        swapOrderData.toAmount = toAmount;
-        swapOrderData.data = data;
+        creator = user1.getAddress().toString();
+        swapToken = token.tokenContract.getAddress().toString();
+        emitter = intent.getAddress().toString();
+        destinationAddress = user2.getAddress().toString();
+        dstNID = srcNID;
+        toToken = swapToken;
+        SwapOrder swapOrder = new SwapOrder(id, emitter, srcNID,
+                dstNID, creator, destinationAddress,
+                swapToken, amount, toToken, toAmount, data);
 
-        intent.invoke(user1, "swap", swapOrderData);
+        String depositor = user1.getAddress().toString();
+        byte[] swapOrderDataBytes = swapOrder.toBytes();
+
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("depositor", depositor);
+        jsonObject.put("token", token.tokenContract.getAddress().toString());
+        jsonObject.put("amount", amount);
+        jsonObject.put("swapOrderDataBytes", bytesToHex(swapOrderDataBytes).toString());
+
+        byte[] finalData = jsonObjectToByteArray(jsonObject);
+
+        intent.invoke(user1, "tokenFallback", user1.getAddress(), amount, finalData);
 
         when(token.tokenContract.mock.balanceOf(solver.getAddress())).thenReturn(totalSupply);
 
         token.tokenContract.mock.approve(intent.getAddress(), amount);
 
-        when(token.tokenContract.mock.allowance(user1.getAddress(), intent.getAddress())).thenReturn(amount);
+        when(token.tokenContract.mock.allowance(user1.getAddress(),
+                intent.getAddress())).thenReturn(amount);
 
         // SwapOrder swapOrder = new SwapOrder(
         // swapOrderData.id, swapOrderData.emitter, swapOrderData.srcNID,
@@ -339,6 +437,20 @@ public class IntentTest extends TestBase {
         // solver.getAddress().toString());
         // OrderMessage orderMessage = new OrderMessage(BigInteger.valueOf(1),
         // orderFill.toBytes());
+
+        // Create SwapOrderData and set the required parameters
+        SwapOrderData swapOrderData = new SwapOrderData();
+        swapOrderData.id = swapOrder.id;
+        swapOrderData.emitter = swapOrder.emitter;
+        swapOrderData.srcNID = swapOrder.srcNID;
+        swapOrderData.dstNID = swapOrder.dstNID;
+        swapOrderData.creator = swapOrder.creator;
+        swapOrderData.destinationAddress = swapOrder.destinationAddress;
+        swapOrderData.token = swapOrder.token;
+        swapOrderData.amount = swapOrder.amount;
+        swapOrderData.toToken = swapOrder.toToken;
+        swapOrderData.toAmount = swapOrder.toAmount;
+        swapOrderData.data = swapOrder.data;
 
         intent.invoke(user1, "fill", swapOrderData, solver.getAddress().toString());
     }
@@ -349,38 +461,50 @@ public class IntentTest extends TestBase {
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(BigInteger.ZERO);
         when(token.tokenContract.mock.balanceOf(user2.getAddress())).thenReturn(BigInteger.ZERO);
 
-        assertEquals(totalSupply, token.tokenContract.mock.balanceOf(deployer.getAddress()));
+        assertEquals(totalSupply,
+                token.tokenContract.mock.balanceOf(deployer.getAddress()));
 
-        boolean success = token.tokenContract.mock.transfer(user1.getAddress(), totalSupply);
+        boolean success = token.tokenContract.mock.transfer(user1.getAddress(),
+                totalSupply);
         assertTrue(success);
 
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(totalSupply);
-        assertEquals(totalSupply, token.tokenContract.mock.balanceOf(user1.getAddress()));
+        assertEquals(totalSupply,
+                token.tokenContract.mock.balanceOf(user1.getAddress()));
         when(token.tokenContract.mock.balanceOf(deployer.getAddress())).thenReturn(BigInteger.ZERO);
-        assertEquals(BigInteger.ZERO, token.tokenContract.mock.balanceOf(deployer.getAddress()));
+        assertEquals(BigInteger.ZERO,
+                token.tokenContract.mock.balanceOf(deployer.getAddress()));
 
-        SwapOrderData swapOrderData = new SwapOrderData();
-        swapOrderData.id = BigInteger.valueOf(1);
-        swapOrderData.emitter = intent.getAddress().toString();
-        swapOrderData.srcNID = srcNid;
-        swapOrderData.dstNID = destinationNetwork;
-        swapOrderData.creator = user1.getAddress().toString();
-        swapOrderData.destinationAddress = user2.getAddress().toString();
-        swapOrderData.token = token.tokenContract.getAddress().toString();
-        swapOrderData.amount = amount;
-        swapOrderData.toToken = token.tokenContract.getAddress().toString();
-        swapOrderData.toAmount = toAmount;
-        swapOrderData.data = data;
+        creator = user1.getAddress().toString();
+        swapToken = token.tokenContract.getAddress().toString();
+        emitter = intent.getAddress().toString();
+        destinationAddress = user2.getAddress().toString();
+        toToken = swapToken;
+        SwapOrder swapOrder = new SwapOrder(id, emitter, srcNID,
+                dstNID, creator, destinationAddress,
+                swapToken, amount, toToken, toAmount, data);
 
-        intent.invoke(user1, "swap", swapOrderData);
+        String depositor = user1.getAddress().toString();
+        byte[] swapOrderDataBytes = swapOrder.toBytes();
+
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("depositor", depositor);
+        jsonObject.put("token", token.tokenContract.getAddress().toString());
+        jsonObject.put("amount", amount);
+        jsonObject.put("swapOrderDataBytes", bytesToHex(swapOrderDataBytes).toString());
+
+        byte[] finalData = jsonObjectToByteArray(jsonObject);
+
+        intent.invoke(user1, "tokenFallback", user1.getAddress(), amount, finalData);
 
         BigInteger beforeCancelConn = (BigInteger) intent.call("getConnSn");
 
-        intent.invoke(user1, "cancel", swapOrderData.id);
+        intent.invoke(user1, "cancel", swapOrder.id);
 
         BigInteger afterCancelConn = (BigInteger) intent.call("getConnSn");
 
-        assertEquals(beforeCancelConn, afterCancelConn.subtract(BigInteger.valueOf(1)));
+        assertEquals(beforeCancelConn,
+                afterCancelConn.subtract(BigInteger.valueOf(1)));
     }
 
     @Test
@@ -389,36 +513,49 @@ public class IntentTest extends TestBase {
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(BigInteger.ZERO);
         when(token.tokenContract.mock.balanceOf(user2.getAddress())).thenReturn(BigInteger.ZERO);
 
-        assertEquals(totalSupply, token.tokenContract.mock.balanceOf(deployer.getAddress()));
+        assertEquals(totalSupply,
+                token.tokenContract.mock.balanceOf(deployer.getAddress()));
 
-        boolean success = token.tokenContract.mock.transfer(user1.getAddress(), totalSupply);
+        boolean success = token.tokenContract.mock.transfer(user1.getAddress(),
+                totalSupply);
         assertTrue(success);
 
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(totalSupply);
-        assertEquals(totalSupply, token.tokenContract.mock.balanceOf(user1.getAddress()));
+        assertEquals(totalSupply,
+                token.tokenContract.mock.balanceOf(user1.getAddress()));
         when(token.tokenContract.mock.balanceOf(deployer.getAddress())).thenReturn(BigInteger.ZERO);
-        assertEquals(BigInteger.ZERO, token.tokenContract.mock.balanceOf(deployer.getAddress()));
+        assertEquals(BigInteger.ZERO,
+                token.tokenContract.mock.balanceOf(deployer.getAddress()));
 
-        SwapOrderData swapOrderData = new SwapOrderData();
-        swapOrderData.id = BigInteger.valueOf(1);
-        swapOrderData.emitter = intent.getAddress().toString();
-        swapOrderData.srcNID = srcNid;
-        swapOrderData.dstNID = destinationNetwork;
-        swapOrderData.creator = user1.getAddress().toString();
-        swapOrderData.destinationAddress = user2.getAddress().toString();
-        swapOrderData.token = token.tokenContract.getAddress().toString();
-        swapOrderData.amount = amount;
-        swapOrderData.toToken = token.tokenContract.getAddress().toString();
-        swapOrderData.toAmount = toAmount;
-        swapOrderData.data = data;
+        creator = user1.getAddress().toString();
+        swapToken = token.tokenContract.getAddress().toString();
+        emitter = intent.getAddress().toString();
+        destinationAddress = user2.getAddress().toString();
+        toToken = swapToken;
+        SwapOrder swapOrder = new SwapOrder(id, emitter, srcNID,
+                dstNID, creator, destinationAddress,
+                swapToken, amount, toToken, toAmount, data);
 
-        intent.invoke(user1, "swap", swapOrderData);
+        String depositor = user1.getAddress().toString();
+        byte[] swapOrderDataBytes = swapOrder.toBytes();
 
-        UserRevertedException exception = assertThrows(UserRevertedException.class, () -> {
-            intent.invoke(deployer, "cancel", swapOrderData.id);
-        });
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("depositor", depositor);
+        jsonObject.put("token", token.tokenContract.getAddress().toString());
+        jsonObject.put("amount", amount);
+        jsonObject.put("swapOrderDataBytes", bytesToHex(swapOrderDataBytes).toString());
 
-        assertEquals("Reverted(0): Only creator can cancel this order", exception.getMessage());
+        byte[] finalData = jsonObjectToByteArray(jsonObject);
+
+        intent.invoke(user1, "tokenFallback", user1.getAddress(), amount, finalData);
+
+        UserRevertedException exception = assertThrows(UserRevertedException.class,
+                () -> {
+                    intent.invoke(deployer, "cancel", swapOrder.id);
+                });
+
+        assertEquals("Reverted(0): Only creator can cancel this order",
+                exception.getMessage());
     }
 
     @Test
@@ -427,53 +564,75 @@ public class IntentTest extends TestBase {
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(BigInteger.ZERO);
         when(token.tokenContract.mock.balanceOf(user2.getAddress())).thenReturn(BigInteger.ZERO);
 
-        assertEquals(totalSupply, token.tokenContract.mock.balanceOf(deployer.getAddress()));
+        assertEquals(totalSupply,
+                token.tokenContract.mock.balanceOf(deployer.getAddress()));
 
-        boolean success = token.tokenContract.mock.transfer(user1.getAddress(), totalSupply);
+        boolean success = token.tokenContract.mock.transfer(user1.getAddress(),
+                totalSupply);
         assertTrue(success);
 
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(totalSupply);
-        assertEquals(totalSupply, token.tokenContract.mock.balanceOf(user1.getAddress()));
+        assertEquals(totalSupply,
+                token.tokenContract.mock.balanceOf(user1.getAddress()));
         when(token.tokenContract.mock.balanceOf(deployer.getAddress())).thenReturn(BigInteger.ZERO);
-        assertEquals(BigInteger.ZERO, token.tokenContract.mock.balanceOf(deployer.getAddress()));
+        assertEquals(BigInteger.ZERO,
+                token.tokenContract.mock.balanceOf(deployer.getAddress()));
 
-        SwapOrderData swapOrderData = new SwapOrderData();
-        swapOrderData.id = BigInteger.valueOf(1);
-        swapOrderData.emitter = intent.getAddress().toString();
-        swapOrderData.srcNID = srcNid;
-        swapOrderData.dstNID = destinationNetwork;
-        swapOrderData.creator = user1.getAddress().toString();
-        swapOrderData.destinationAddress = user2.getAddress().toString();
-        swapOrderData.token = token.tokenContract.getAddress().toString();
-        swapOrderData.amount = amount;
-        swapOrderData.toToken = token.tokenContract.getAddress().toString();
-        swapOrderData.toAmount = toAmount;
-        swapOrderData.data = data;
+        creator = user1.getAddress().toString();
+        swapToken = token.tokenContract.getAddress().toString();
+        emitter = intent.getAddress().toString();
+        destinationAddress = user2.getAddress().toString();
+        toToken = swapToken;
+        SwapOrder swapOrder = new SwapOrder(id, emitter, srcNID,
+                dstNID, creator, destinationAddress,
+                swapToken, amount, toToken, toAmount, data);
 
-        intent.invoke(user1, "swap", swapOrderData);
+        String depositor = user1.getAddress().toString();
+        byte[] swapOrderDataBytes = swapOrder.toBytes();
+
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("depositor", depositor);
+        jsonObject.put("token", token.tokenContract.getAddress().toString());
+        jsonObject.put("amount", amount);
+        jsonObject.put("swapOrderDataBytes", bytesToHex(swapOrderDataBytes).toString());
+
+        byte[] finalData = jsonObjectToByteArray(jsonObject);
+
+        intent.invoke(user1, "tokenFallback", user1.getAddress(), amount, finalData);
 
         when(token.tokenContract.mock.balanceOf(solver.getAddress())).thenReturn(totalSupply);
 
         token.tokenContract.mock.approve(intent.getAddress(), amount);
 
-        when(token.tokenContract.mock.allowance(user1.getAddress(), intent.getAddress())).thenReturn(amount);
+        when(token.tokenContract.mock.allowance(user1.getAddress(),
+                intent.getAddress())).thenReturn(amount);
 
-        SwapOrder swapOrder = new SwapOrder(
-                swapOrderData.id, swapOrderData.emitter, swapOrderData.srcNID,
-                swapOrderData.dstNID, swapOrderData.creator, swapOrderData.destinationAddress,
-                swapOrderData.token, swapOrderData.amount, swapOrderData.toToken,
-                swapOrderData.toAmount, swapOrderData.data);
+        SwapOrderData swapOrderData = new SwapOrderData();
+        swapOrderData.id = swapOrder.id;
+        swapOrderData.emitter = swapOrder.emitter;
+        swapOrderData.srcNID = swapOrder.srcNID;
+        swapOrderData.dstNID = swapOrder.dstNID;
+        swapOrderData.creator = swapOrder.creator;
+        swapOrderData.destinationAddress = swapOrder.destinationAddress;
+        swapOrderData.token = swapOrder.token;
+        swapOrderData.amount = swapOrder.amount;
+        swapOrderData.toToken = swapOrder.toToken;
+        swapOrderData.toAmount = swapOrder.toAmount;
+        swapOrderData.data = swapOrder.data;
 
-        OrderFill orderFill = new OrderFill(swapOrder.id, swapOrder.toBytes(), solver.getAddress().toString());
-        OrderMessage orderMessage = new OrderMessage(BigInteger.valueOf(1), orderFill.toBytes());
+        OrderFill orderFill = new OrderFill(swapOrder.id, swapOrder.toBytes(),
+                solver.getAddress().toString());
+        OrderMessage orderMessage = new OrderMessage(BigInteger.valueOf(1),
+                orderFill.toBytes());
 
         intent.invoke(user1, "fill", swapOrderData, solver.getAddress().toString());
 
-        intent.invoke(relayAddress, "recvMessage", destinationNetwork, 1, orderMessage.toBytes());
+        intent.invoke(relayAddress, "recvMessage", dstNID, 1,
+                orderMessage.toBytes());
 
         BigInteger conn = (BigInteger) intent.call("getConnSn");
 
-        assertEquals(intent.call("getReceipt", destinationNetwork, conn), true);
+        assertEquals(intent.call("getReceipt", dstNID, conn), true);
     }
 
     @Test
@@ -482,51 +641,74 @@ public class IntentTest extends TestBase {
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(BigInteger.ZERO);
         when(token.tokenContract.mock.balanceOf(user2.getAddress())).thenReturn(BigInteger.ZERO);
 
-        assertEquals(totalSupply, token.tokenContract.mock.balanceOf(deployer.getAddress()));
+        assertEquals(totalSupply,
+                token.tokenContract.mock.balanceOf(deployer.getAddress()));
 
-        boolean success = token.tokenContract.mock.transfer(user1.getAddress(), totalSupply);
+        boolean success = token.tokenContract.mock.transfer(user1.getAddress(),
+                totalSupply);
         assertTrue(success);
 
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(totalSupply);
-        assertEquals(totalSupply, token.tokenContract.mock.balanceOf(user1.getAddress()));
+        assertEquals(totalSupply,
+                token.tokenContract.mock.balanceOf(user1.getAddress()));
         when(token.tokenContract.mock.balanceOf(deployer.getAddress())).thenReturn(BigInteger.ZERO);
-        assertEquals(BigInteger.ZERO, token.tokenContract.mock.balanceOf(deployer.getAddress()));
+        assertEquals(BigInteger.ZERO,
+                token.tokenContract.mock.balanceOf(deployer.getAddress()));
 
-        SwapOrderData swapOrderData = new SwapOrderData();
-        swapOrderData.id = BigInteger.valueOf(1);
-        swapOrderData.emitter = intent.getAddress().toString();
-        swapOrderData.srcNID = srcNid;
-        swapOrderData.dstNID = destinationNetwork;
-        swapOrderData.creator = user1.getAddress().toString();
-        swapOrderData.destinationAddress = user2.getAddress().toString();
-        swapOrderData.token = token.tokenContract.getAddress().toString();
-        swapOrderData.amount = amount;
-        swapOrderData.toToken = token.tokenContract.getAddress().toString();
-        swapOrderData.toAmount = toAmount;
-        swapOrderData.data = data;
+        creator = user1.getAddress().toString();
+        swapToken = token.tokenContract.getAddress().toString();
+        emitter = intent.getAddress().toString();
+        destinationAddress = user2.getAddress().toString();
+        toToken = swapToken;
+        SwapOrder swapOrder = new SwapOrder(id, emitter, srcNID,
+                dstNID, creator, destinationAddress,
+                swapToken, amount, toToken, toAmount, data);
 
-        intent.invoke(user1, "swap", swapOrderData);
+        String depositor = user1.getAddress().toString();
+        byte[] swapOrderDataBytes = swapOrder.toBytes();
+
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("depositor", depositor);
+        jsonObject.put("token", token.tokenContract.getAddress().toString());
+        jsonObject.put("amount", amount);
+        jsonObject.put("swapOrderDataBytes", bytesToHex(swapOrderDataBytes).toString());
+
+        byte[] finalData = jsonObjectToByteArray(jsonObject);
+
+        intent.invoke(user1, "tokenFallback", user1.getAddress(), amount, finalData);
 
         when(token.tokenContract.mock.balanceOf(solver.getAddress())).thenReturn(totalSupply);
 
         token.tokenContract.mock.approve(intent.getAddress(), amount);
 
-        when(token.tokenContract.mock.allowance(user1.getAddress(), intent.getAddress())).thenReturn(amount);
+        when(token.tokenContract.mock.allowance(user1.getAddress(),
+                intent.getAddress())).thenReturn(amount);
 
-        SwapOrder swapOrder = new SwapOrder(
-                swapOrderData.id, swapOrderData.emitter, swapOrderData.srcNID,
-                swapOrderData.dstNID, swapOrderData.creator, swapOrderData.destinationAddress,
-                swapOrderData.token, swapOrderData.amount, swapOrderData.toToken,
-                swapOrderData.toAmount, swapOrderData.data);
+        SwapOrderData swapOrderData = new SwapOrderData();
+        swapOrderData.id = swapOrder.id;
+        swapOrderData.emitter = swapOrder.emitter;
+        swapOrderData.srcNID = swapOrder.srcNID;
+        swapOrderData.dstNID = swapOrder.dstNID;
+        swapOrderData.creator = swapOrder.creator;
+        swapOrderData.destinationAddress = swapOrder.destinationAddress;
+        swapOrderData.token = swapOrder.token;
+        swapOrderData.amount = swapOrder.amount;
+        swapOrderData.toToken = swapOrder.toToken;
+        swapOrderData.toAmount = swapOrder.toAmount;
+        swapOrderData.data = swapOrder.data;
 
-        OrderFill orderFill = new OrderFill(swapOrder.id, swapOrder.toBytes(), solver.getAddress().toString());
-        OrderMessage orderMessage = new OrderMessage(BigInteger.valueOf(1), orderFill.toBytes());
+        OrderFill orderFill = new OrderFill(swapOrder.id, swapOrder.toBytes(),
+                solver.getAddress().toString());
+        OrderMessage orderMessage = new OrderMessage(BigInteger.valueOf(1),
+                orderFill.toBytes());
 
         intent.invoke(user1, "fill", swapOrderData, solver.getAddress().toString());
 
-        UserRevertedException exception = assertThrows(UserRevertedException.class, () -> {
-            intent.invoke(relayAddress, "recvMessage", "dummy", 1, orderMessage.toBytes());
-        });
+        UserRevertedException exception = assertThrows(UserRevertedException.class,
+                () -> {
+                    intent.invoke(relayAddress, "recvMessage", "dummy", 1,
+                            orderMessage.toBytes());
+                });
 
         assertEquals("Reverted(0): Invalid Network", exception.getMessage());
 
@@ -538,47 +720,67 @@ public class IntentTest extends TestBase {
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(BigInteger.ZERO);
         when(token.tokenContract.mock.balanceOf(user2.getAddress())).thenReturn(BigInteger.ZERO);
 
-        assertEquals(totalSupply, token.tokenContract.mock.balanceOf(deployer.getAddress()));
+        assertEquals(totalSupply,
+                token.tokenContract.mock.balanceOf(deployer.getAddress()));
 
-        boolean success = token.tokenContract.mock.transfer(user1.getAddress(), totalSupply);
+        boolean success = token.tokenContract.mock.transfer(user1.getAddress(),
+                totalSupply);
         assertTrue(success);
 
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(totalSupply);
-        assertEquals(totalSupply, token.tokenContract.mock.balanceOf(user1.getAddress()));
+        assertEquals(totalSupply,
+                token.tokenContract.mock.balanceOf(user1.getAddress()));
         when(token.tokenContract.mock.balanceOf(deployer.getAddress())).thenReturn(BigInteger.ZERO);
-        assertEquals(BigInteger.ZERO, token.tokenContract.mock.balanceOf(deployer.getAddress()));
+        assertEquals(BigInteger.ZERO,
+                token.tokenContract.mock.balanceOf(deployer.getAddress()));
 
-        SwapOrderData swapOrderData = new SwapOrderData();
-        swapOrderData.id = BigInteger.valueOf(1);
-        swapOrderData.emitter = intent.getAddress().toString();
-        swapOrderData.srcNID = srcNid;
-        swapOrderData.dstNID = destinationNetwork;
-        swapOrderData.creator = user1.getAddress().toString();
-        swapOrderData.destinationAddress = user2.getAddress().toString();
-        swapOrderData.token = token.tokenContract.getAddress().toString();
-        swapOrderData.amount = amount;
-        swapOrderData.toToken = token.tokenContract.getAddress().toString();
-        swapOrderData.toAmount = toAmount;
-        swapOrderData.data = data;
+        creator = user1.getAddress().toString();
+        swapToken = token.tokenContract.getAddress().toString();
+        emitter = intent.getAddress().toString();
+        destinationAddress = user2.getAddress().toString();
+        toToken = swapToken;
+        SwapOrder swapOrder = new SwapOrder(id, emitter, srcNID,
+                dstNID, creator, destinationAddress,
+                swapToken, amount, toToken, toAmount, data);
 
-        intent.invoke(user1, "swap", swapOrderData);
+        String depositor = user1.getAddress().toString();
+        byte[] swapOrderDataBytes = swapOrder.toBytes();
+
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("depositor", depositor);
+        jsonObject.put("token", token.tokenContract.getAddress().toString());
+        jsonObject.put("amount", amount);
+        jsonObject.put("swapOrderDataBytes", bytesToHex(swapOrderDataBytes).toString());
+
+        byte[] finalData = jsonObjectToByteArray(jsonObject);
+
+        intent.invoke(user1, "tokenFallback", user1.getAddress(), amount, finalData);
 
         when(token.tokenContract.mock.balanceOf(solver.getAddress())).thenReturn(totalSupply);
 
         token.tokenContract.mock.approve(intent.getAddress(), amount);
 
-        when(token.tokenContract.mock.allowance(user1.getAddress(), intent.getAddress())).thenReturn(amount);
+        when(token.tokenContract.mock.allowance(user1.getAddress(),
+                intent.getAddress())).thenReturn(amount);
 
-        SwapOrder swapOrder = new SwapOrder(
-                swapOrderData.id, swapOrderData.emitter, swapOrderData.srcNID,
-                swapOrderData.dstNID, swapOrderData.creator, swapOrderData.destinationAddress,
-                swapOrderData.token, swapOrderData.amount, swapOrderData.toToken,
-                swapOrderData.toAmount, swapOrderData.data);
+        SwapOrderData swapOrderData = new SwapOrderData();
+        swapOrderData.id = swapOrder.id;
+        swapOrderData.emitter = swapOrder.emitter;
+        swapOrderData.srcNID = swapOrder.srcNID;
+        swapOrderData.dstNID = swapOrder.dstNID;
+        swapOrderData.creator = swapOrder.creator;
+        swapOrderData.destinationAddress = swapOrder.destinationAddress;
+        swapOrderData.token = swapOrder.token;
+        swapOrderData.amount = swapOrder.amount;
+        swapOrderData.toToken = swapOrder.toToken;
+        swapOrderData.toAmount = swapOrder.toAmount;
+        swapOrderData.data = swapOrder.data;
 
         Cancel cancel = new Cancel();
         cancel.orderBytes = swapOrder.toBytes();
 
-        OrderMessage orderMessage = new OrderMessage(Constant.CANCEL, cancel.toBytes());
+        OrderMessage orderMessage = new OrderMessage(Constant.CANCEL,
+                cancel.toBytes());
 
         // OrderFill orderFill = new OrderFill(swapOrder.id, swapOrder.toBytes(),
         // swapOrder.creator);
@@ -586,7 +788,7 @@ public class IntentTest extends TestBase {
         // OrderMessage fillMessage = new OrderMessage(Constant.FILL,
         // orderFill.toBytes());
 
-        intent.invoke(relayAddress, "recvMessage", srcNid, 1,
+        intent.invoke(relayAddress, "recvMessage", srcNID, 1,
                 orderMessage.toBytes());
 
         boolean isFinished = (boolean) intent.call("getFinishedorders",
@@ -636,9 +838,19 @@ public class IntentTest extends TestBase {
     public void testTokenFallback() {
         when(token.tokenContract.mock.balanceOf(user1.getAddress())).thenReturn(totalSupply);
 
-        SwapOrder swapOrder = new SwapOrder(BigInteger.valueOf(1), intent.getAddress().toString(), srcNid,
-                destinationNetwork, user1.getAddress().toString(), user2.getAddress().toString(),
-                token.tokenContract.getAddress().toString(), amount, toToken, toAmount, data);
+        BigInteger depositedAmount0 = (BigInteger) intent.call("getDepositAmount",
+                user1.getAddress().toString(),
+                token.tokenContract.getAddress().toString());
+        assertEquals(BigInteger.ZERO, depositedAmount0);
+
+        creator = user1.getAddress().toString();
+        swapToken = token.tokenContract.getAddress().toString();
+        emitter = intent.getAddress().toString();
+        destinationAddress = user2.getAddress().toString();
+        toToken = swapToken;
+        SwapOrder swapOrder = new SwapOrder(id, emitter, srcNID,
+                dstNID, creator, destinationAddress,
+                swapToken, amount, toToken, toAmount, data);
 
         String depositor = user1.getAddress().toString();
         byte[] swapOrderDataBytes = swapOrder.toBytes();
@@ -653,10 +865,10 @@ public class IntentTest extends TestBase {
 
         intent.invoke(user1, "tokenFallback", user1.getAddress(), amount, finalData);
 
-         BigInteger depositedAmount = (BigInteger) intent.call("getDepositAmount",
-         user1.getAddress().toString(),
-         token.tokenContract.getAddress().toString());
-         assertEquals(amount, depositedAmount);
+        BigInteger depositedAmount = (BigInteger) intent.call("getDepositAmount",
+                user1.getAddress().toString(),
+                token.tokenContract.getAddress().toString());
+        assertEquals(amount, depositedAmount);
     }
 
     public static String bytesToHex(byte[] bytes) {
