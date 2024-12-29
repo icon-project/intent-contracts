@@ -3,6 +3,7 @@ import { Contract } from '@ethersproject/contracts';
 import { Wallet } from '@ethersproject/wallet';
 import {SwapOrder} from "./swap-order"
 import fs from 'fs';
+import path from "path"
 import { PERMIT2_ADDRESS, PermitTransferFrom, SignatureTransfer, Witness } from '@uniswap/permit2-sdk';
 import { _TypedDataEncoder } from '@ethersproject/hash'
 import { MaxUint256, Interface} from 'ethers';
@@ -45,7 +46,7 @@ export class EVMIntents{
     constructor(address: string, provider: JsonRpcProvider, wallet: Wallet) {
         this.address = address;
         this.provider = provider;
-        this.abi = JSON.parse(fs.readFileSync('/home/andell/ICON/intent-contracts/contracts/evm/out/Intents.sol/Intents.json', 'utf8'))['abi'];
+        this.abi = JSON.parse(fs.readFileSync(path.join(__dirname, '../..', 'contracts/evm/out/Intents.sol/Intents.json'), 'utf8'))['abi'];
         this.wallet = wallet.connect(this.provider);
 
         this.intents = new Contract(this.address, this.abi, this.wallet);
