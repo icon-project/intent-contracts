@@ -9,7 +9,7 @@ use super::setup::TestContext;
 use crate::{
     contract::IntentClient,
     event::{Message, OrderFilled},
-    storage,
+    helpers, storage,
     types::{MessageType, OrderFill, OrderMessage},
 };
 
@@ -24,7 +24,7 @@ fn test_fill_for_already_finished_order() {
 
     ctx.env.as_contract(&ctx.contract, || {
         let order_bytes = order.encode(&ctx.env);
-        let order_hash = ctx.env.crypto().keccak256(&order_bytes);
+        let order_hash = helpers::hash_data(&ctx.env, &order_bytes);
         storage::store_finished_order(&ctx.env, &order_hash);
     });
 
@@ -126,7 +126,7 @@ fn test_fill_order() {
         ]
     );
 
-    let order_hash = ctx.env.crypto().keccak256(&order.encode(&ctx.env));
+    let order_hash = helpers::hash_data(&ctx.env, &order.encode(&ctx.env));
     let finished_order = client.get_finished_order(&order_hash);
     assert_eq!(finished_order, true);
 

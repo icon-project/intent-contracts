@@ -9,7 +9,7 @@ use super::setup::TestContext;
 use crate::{
     contract::IntentClient,
     event::{Message, OrderCancelled},
-    storage,
+    helpers, storage,
     types::{Cancel, MessageType, OrderFill, OrderMessage},
 };
 
@@ -125,7 +125,7 @@ fn test_resolve_cancel_in_same_source_and_destination_chain() {
 
     ctx.env.as_contract(&ctx.contract, || {
         let order_bytes = order.encode(&ctx.env);
-        let order_hash = ctx.env.crypto().keccak256(&order_bytes);
+        let order_hash = helpers::hash_data(&ctx.env, &order_bytes);
         let filled_order = storage::order_finished(&ctx.env, &order_hash);
         assert_eq!(filled_order, true);
     });
@@ -168,7 +168,7 @@ fn test_resolve_cancel_with_invalid_network_id() {
     let receipt = client.get_receipt(&src_network, &conn_sn);
     assert_eq!(receipt, true);
 
-    let order_hash = ctx.env.crypto().keccak256(&order.encode(&ctx.env));
+    let order_hash = helpers::hash_data(&ctx.env, &order.encode(&ctx.env));
     ctx.env.as_contract(&ctx.contract, || {
         let filled_order = storage::order_finished(&ctx.env, &order_hash);
         assert_eq!(filled_order, true)
@@ -182,7 +182,7 @@ fn test_resolve_cancel_for_already_filled_order() {
     ctx.init_context(&client);
 
     let order = ctx.get_dummy_swap(ctx.dst_nid.clone());
-    let order_hash = ctx.env.crypto().keccak256(&order.encode(&ctx.env));
+    let order_hash = helpers::hash_data(&ctx.env, &order.encode(&ctx.env));
     ctx.env.as_contract(&ctx.contract, || {
         storage::store_finished_order(&ctx.env, &order_hash);
     });

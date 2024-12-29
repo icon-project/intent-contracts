@@ -1,4 +1,4 @@
-use soroban_sdk::{token, Address, Env};
+use soroban_sdk::{token, Address, Bytes, BytesN, Env};
 
 use crate::{error::ContractError, storage};
 
@@ -19,4 +19,8 @@ pub fn ensure_upgrade_authority(e: &Env) -> Result<Address, ContractError> {
 pub fn transfer_token(env: &Env, token: &Address, from: &Address, to: &Address, amount: u128) {
     let token_client = token::Client::new(&env, &token);
     token_client.transfer(&from, &to, &(amount as i128));
+}
+
+pub fn hash_data(e: &Env, data: &Bytes) -> BytesN<32> {
+    e.crypto().keccak256(data).to_bytes()
 }

@@ -1,5 +1,5 @@
-use soroban_sdk::{contracttype, vec, Bytes, BytesN, Env, String, Vec};
 use soroban_rlp::{decoder, encoder};
+use soroban_sdk::{contracttype, vec, Bytes, BytesN, Env, String, Vec};
 
 #[contracttype]
 #[derive(Debug, Clone, PartialEq)]
@@ -110,7 +110,7 @@ impl SwapOrder {
     }
 
     pub fn get_hash(&self, e: &Env) -> BytesN<32> {
-        e.crypto().keccak256(&self.encode(&e))
+        e.crypto().keccak256(&self.encode(&e)).to_bytes()
     }
 
     pub fn encode(&self, e: &Env) -> Bytes {

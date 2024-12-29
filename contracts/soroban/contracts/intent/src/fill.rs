@@ -14,7 +14,7 @@ pub fn fill_order(
     sender.require_auth();
 
     let order_bytes = order.encode(&env);
-    let order_hash = env.crypto().keccak256(&order_bytes);
+    let order_hash = helpers::hash_data(&env, &order_bytes);
 
     if storage::order_finished(&env, &order_hash) {
         return Err(ContractError::OrderAlreadyFilled);
@@ -50,7 +50,7 @@ pub fn fill_order(
 
 pub fn resolve_fill(env: &Env, src_network: String, fill: OrderFill) -> Result<(), ContractError> {
     let order = storage::get_order(&env, fill.id())?;
-    if order.get_hash(&env) != env.crypto().keccak256(&fill.order_bytes()) {
+    if order.get_hash(&env) != helpers::hash_data(&env, &fill.order_bytes()) {
         return Err(ContractError::OrderMismatched);
     }
 
