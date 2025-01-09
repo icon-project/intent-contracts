@@ -41,7 +41,7 @@ public class Intent extends GeneralizedConnection {
             BigInteger amount,
             String toToken,
             BigInteger toAmount,
-            String data) {
+            byte[] data) {
     }
 
     @EventLog(indexed = 2)
@@ -247,19 +247,44 @@ public class Intent extends GeneralizedConnection {
 
         // string(address of depositer) -> string (deposits token address) -> amountof
         // token
-        String depositor = json.get("depositor").asString();
-        String token = json.get("token").asString();
-        BigInteger amount = new BigInteger(json.get("amount").asString());
+        // String depositor = json.get("depositor").asString();
+        // String token = json.get("token").asString();
+        // BigInteger amount = new BigInteger(json.get("amount").asString());
+        String type = json.get("type").asString();
+        // deposit.at(depositor).set(token, amount);
+        if (type.equals("swap")) {
+            SwapOrder swapOrder = SwapOrder
+                    .fromBytes(hexStringToByteArray(json.get("swapOrderDataBytes").asString()));
+            deposit.at(swapOrder.creator).set(swapOrder.token, swapOrder.amount);
 
-        deposit.at(depositor).set(token, amount);
-        SwapOrder swapOrder = SwapOrder
-                .fromBytes(hexStringToByteArray(json.get("swapOrderDataBytes").asString()));
+            // Context.require(amount.equals(swapOrder.amount), "Token amount must be
+            // equal");
+            // Context.require(swapOrder.getToken() != null, "Token can't be null");
+            Context.require(Context.getCaller().toString().equals(extractAddress(swapOrder.getCreator())),
+                    "Creator must be sender");
+            _swap(swapOrder);
+        } else {
+            SwapOrder swapOrder = SwapOrder
+                    .fromBytes(hexStringToByteArray(json.get("swapOrderDataBytes").asString()));
 
-        Context.require(amount.equals(swapOrder.amount), "Token amount must be equal");
-        Context.require(swapOrder.getToken() != null, "Token can't be null");
-        Context.require(Context.getCaller().toString().equals(extractAddress(swapOrder.getCreator())),
-                "Creator must be sender");
-        _swap(swapOrder);
+            SwapOrderData swapOrderData = new SwapOrderData();
+            swapOrderData.id = swapOrder.id;
+            swapOrderData.emitter = swapOrder.emitter;
+            swapOrderData.srcNID = swapOrder.srcNID;
+            swapOrderData.dstNID = swapOrder.dstNID;
+            swapOrderData.creator = swapOrder.creator;
+            swapOrderData.destinationAddress = swapOrder.destinationAddress;
+            swapOrderData.token = swapOrder.token;
+            swapOrderData.amount = swapOrder.amount;
+            swapOrderData.toToken = swapOrder.toToken;
+            swapOrderData.toAmount = swapOrder.toAmount;
+            swapOrderData.data = swapOrder.data;
+
+            String solver = json.get("solver").asString();
+            fill(swapOrderData, solver);
+        }
+        ;
+
     }
 
     @External

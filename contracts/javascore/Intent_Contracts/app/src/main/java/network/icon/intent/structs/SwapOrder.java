@@ -18,11 +18,11 @@ public class SwapOrder {
     public BigInteger amount; // Amount of the token to be swapped
     public String toToken; // Token to receive on the destination network
     public BigInteger toAmount; // Minimum amount of the toToken to receive
-    public String data; // Additional data (if any) for future use (is this the right type?)
+    public byte[] data; // Additional data (if any) for future use (is this the right type?)
 
     public SwapOrder(BigInteger id, String emitter, String srcNID, String dstNID, String creator,
             String destinationAddress, String token, BigInteger amount, String toToken, BigInteger toAmount,
-            String data) {
+            byte[] data) {
         this.id = id;
         this.emitter = emitter;
         this.srcNID = srcNID;
@@ -77,7 +77,7 @@ public class SwapOrder {
         obj.toAmount = reader.readBigInteger();
         Context.println(obj.toAmount.toString());
 
-        obj.data = reader.readString();
+        obj.data = reader.readByteArray();
         Context.println(obj.data.toString());
 
         reader.end();
@@ -191,11 +191,11 @@ public class SwapOrder {
         this.toAmount = toAmount;
     }
 
-    public String getData() {
+    public byte[] getData() {
         return data;
     }
 
-    public void setData(String data) {
+    public void setData(byte[] data) {
         this.data = data;
     }
 }
