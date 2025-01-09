@@ -13,7 +13,8 @@ import score.*;
 import score.annotation.EventLog;
 import score.annotation.External;
 import score.annotation.Payable;
-import org.json.JSONObject;
+import com.eclipsesource.json.Json;
+import com.eclipsesource.json.JsonObject;
 
 public class Intent extends GeneralizedConnection {
 
@@ -68,19 +69,14 @@ public class Intent extends GeneralizedConnection {
     @Payable
     public void swap(SwapOrderData swapOrderData) {
         Context.require(swapOrderData.token != null, "Token can't be null");
-        Context.require(Context.getCaller().toString().equals(swapOrderData.creator),
+        Context.require(Context.getCaller().toString().equals(extractAddress(swapOrderData.creator)),
                 "Creator must be sender");
+        Context.require(Context.getValue().equals(swapOrderData.amount),
+                "Deposit amount not equal to order amount");
 
-        Address token = Address.fromString(swapOrderData.token);
+        Address token = Address.fromString(extractAddress(swapOrderData.token));
         Address nativAddress = nativeAddress.get();
-        if (token.equals(nativAddress)) {
-            Context.require(Context.getValue().equals(swapOrderData.amount),
-                    "Deposit amount not equal to order amount");
-        } else {
-            Context.require(Context.getValue().equals(BigInteger.valueOf(0)),
-                    "Nativ Token Must Be Zero");
-            Context.call(token, "transfer", Context.getAddress(), swapOrderData.amount);
-        }
+        Context.require(token.equals(nativAddress), "Not a native token");
 
         SwapOrder swapOrder = new SwapOrder(swapOrderData.id, swapOrderData.emitter,
                 swapOrderData.srcNID,
@@ -89,6 +85,8 @@ public class Intent extends GeneralizedConnection {
                 swapOrderData.amount, swapOrderData.toToken, swapOrderData.toAmount,
                 swapOrderData.data);
 
+        deposit.at(swapOrderData.creator).set(swapOrderData.token, swapOrderData.amount);
+
         _swap(swapOrder);
     }
 
@@ -96,8 +94,8 @@ public class Intent extends GeneralizedConnection {
         BigInteger id = this.depositId.getOrDefault(BigInteger.ZERO).add(BigInteger.valueOf(1));
         swapOrder.id = id;
         Context.require(swapOrder.srcNID.equals(this.networkId.get()), "NID is misconfigured");
-        Context.require(swapOrder.emitter.equals(Context.getAddress().toString()),
-                "Emitter specified is not this");
+        Context.require(extractAddress(swapOrder.emitter).equals(Context.getAddress().toString()),
+                "Emitter specified is not this"); // emitter contract or eoa?
         orders.set(id, swapOrder);
         SwapIntent(id, swapOrder.emitter, swapOrder.srcNID, swapOrder.dstNID,
                 swapOrder.creator,
@@ -121,13 +119,15 @@ public class Intent extends GeneralizedConnection {
         Context.require(!isFilled, "Order has already been filled");
         finishedOrders.set(orderHash, true);
 
-        BigInteger fee = swapOrder.toAmount.multiply(protocolFee.get()).divide(BigInteger.valueOf(1000)); // add divide
-                                                                                                          // by 10000
+        BigInteger fee = swapOrder.toAmount.multiply(protocolFee.get()).divide(BigInteger.valueOf(10000)); // add divide
+                                                                                                           // by 10000
         BigInteger toAmount = swapOrder.toAmount.subtract(fee);
+
         _transferResult(swapOrder.destinationAddress, swapOrder.toToken, toAmount,
                 fee);
 
         OrderFill orderFill = new OrderFill(swapOrder.id, orderBytes, solverAddress);
+
         if (swapOrder.srcNID.equals(swapOrder.dstNID)) {
             _resolveFill(networkId.get(), orderFill);
             return;
@@ -143,7 +143,7 @@ public class Intent extends GeneralizedConnection {
         if (order == null) {
             Context.revert("Order already has been cancelled");
         }
-        Context.require(Address.fromString(order.creator).equals(Context.getCaller()),
+        Context.require(Address.fromString(extractAddress(order.creator)).equals(Context.getCaller()),
                 "Only creator can cancel this order");
 
         if (order.srcNID.equals(order.dstNID)) {
@@ -199,35 +199,36 @@ public class Intent extends GeneralizedConnection {
         if (order == null) {
             Context.revert("There is no order to resolve");
         }
+        Context.require(Arrays.equals(Context.hash("keccak-256", order.toBytes()),
+                Context.hash("keccak-256",
+                        _fill.orderBytes)),
+                "Mismatched order");
 
-        Context.require(Arrays.equals(Context.hash("keccak-256", order.toBytes()), Context.hash("keccak-256",
-                _fill.orderBytes)), "Mismatched order");
         Context.require(order.dstNID.equals(srcNetwork), "Invalid Network");
 
         orders.set(_fill.id, null);
         OrderClosed(_fill.id);
 
-        Address tokenAddress = Address.fromString(order.token);
+        Address tokenAddress = Address.fromString(extractAddress(order.token));
         if (tokenAddress.equals(nativeAddress.get())) {
-            Context.transfer(Address.fromString(_fill.solver), order.amount);
-
+            Context.transfer(Address.fromString(extractAddress(_fill.solver)), order.amount);
         } else {
-            Context.call(tokenAddress, "transfer", Address.fromString(_fill.solver), order.amount);
+            Context.call(tokenAddress, "transfer", Address.fromString(extractAddress(_fill.solver)), order.amount);
         }
     }
 
     void _transferResult(String _toAddress, String _toToken, BigInteger amount,
             BigInteger fee) {
-        Address toAddress = Address.fromString(_toAddress);
-        Address toTokenAddress = Address.fromString(_toToken);
+        Address toAddress = Address.fromString(extractAddress(_toAddress));
+        Address toTokenAddress = Address.fromString(extractAddress(_toToken));
         if (toTokenAddress.equals(nativeAddress.get())) {
             Context.require(Context.getValue().equals(amount.add(fee)), "\"Deposit amount not equal to order amount\"");
             _nativeTransfer(toAddress, amount);
             _nativeTransfer(feeHandler.get(), fee);
         } else {
-            Context.call(toTokenAddress, "transferFrom", Context.getAddress(), toAddress,
+            Context.call(toTokenAddress, "transfer", toAddress,
                     amount);
-            Context.call(toTokenAddress, "transferFrom", Context.getAddress(),
+            Context.call(toTokenAddress, "transfer",
                     feeHandler.get(), fee);
         }
     }
@@ -236,48 +237,28 @@ public class Intent extends GeneralizedConnection {
         Context.transfer(to, amount);
     }
 
-    public static byte[] hexStringToByteArray(String s) {
-        int len = s.length();
-        byte[] data = new byte[len / 2];
-        for (int i = 0; i < len; i += 2) {
-            data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
-                    + Character.digit(s.charAt(i + 1), 16));
-        }
-        return data;
-    }
-
     @External
     public void tokenFallback(Address _from, BigInteger _value, byte[] _data) {
         Context.require(_value.compareTo(BigInteger.ZERO) > 0, "Zero transfers not allowed");
+
         String unpackedData = new String(_data);
         Context.require(!unpackedData.equals(""), "Token Fallback: Data can't be empty");
+        JsonObject json = Json.parse(unpackedData).asObject();
 
-        JSONObject jsonObject = new JSONObject(unpackedData);
-        // string(address of depositer) -> string (deposits token address) -> amount of
+        // string(address of depositer) -> string (deposits token address) -> amountof
         // token
-        String depositor = jsonObject.get("depositor").toString();
-        String token = jsonObject.get("token").toString();
-        BigInteger amount = jsonObject.getBigInteger("amount");
+        String depositor = json.get("depositor").asString();
+        String token = json.get("token").asString();
+        BigInteger amount = new BigInteger(json.get("amount").asString());
 
         deposit.at(depositor).set(token, amount);
-
         SwapOrder swapOrder = SwapOrder
-                .fromBytes(hexStringToByteArray(jsonObject.get("swapOrderDataBytes").toString()));
-        Context.require(amount.equals(swapOrder.getAmount()), "Token amount must be equal");
-        Context.require(swapOrder.getToken() != null, "Token can't be null");
-        Context.require(Context.getCaller().toString().equals(swapOrder.getCreator()),
-                "Creator must be sender");
+                .fromBytes(hexStringToByteArray(json.get("swapOrderDataBytes").asString()));
 
-        Address swapOrderToken = Address.fromString(swapOrder.getToken());
-        Address nativAddress = nativeAddress.get();
-        if (swapOrderToken.equals(nativAddress)) {
-            Context.require(Context.getValue().equals(swapOrder.getAmount()),
-                    "Deposit amount not equal to order amount");
-        } else {
-            Context.require(Context.getValue().equals(BigInteger.valueOf(0)),
-                    "Nativ Token Must Be Zero");
-            Context.call(swapOrderToken, "transfer", Context.getAddress(), swapOrder.getAmount());
-        }
+        Context.require(amount.equals(swapOrder.amount), "Token amount must be equal");
+        Context.require(swapOrder.getToken() != null, "Token can't be null");
+        Context.require(Context.getCaller().toString().equals(extractAddress(swapOrder.getCreator())),
+                "Creator must be sender");
         _swap(swapOrder);
     }
 
@@ -316,5 +297,27 @@ public class Intent extends GeneralizedConnection {
 
     static void OnlyOwner() {
         Context.require(owner.get().equals(Context.getCaller()), "Not Owner");
+    }
+
+    public static String extractAddress(String input) {
+        if (input.contains("0x2.icon/")) {
+            int lastSlashIndex = input.lastIndexOf('/');
+            if (lastSlashIndex != -1 && lastSlashIndex < input.length() - 1) {
+                return input.substring(lastSlashIndex + 1);
+            }
+        } else {
+            return input;
+        }
+        return null;
+    }
+
+    public static byte[] hexStringToByteArray(String s) {
+        int len = s.length();
+        byte[] data = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
+                    + Character.digit(s.charAt(i + 1), 16));
+        }
+        return data;
     }
 }

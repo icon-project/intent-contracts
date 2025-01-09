@@ -57,6 +57,7 @@ public class GeneralizedConnection {
     }
 
     void onlyRelay() {
+        Context.println(relayAddress.get().toString());
         Context.require(Context.getCaller().equals(relayAddress.get()), "OnlyRelayer");
     }
 

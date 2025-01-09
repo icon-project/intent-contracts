@@ -47,17 +47,39 @@ public class SwapOrder {
     public static SwapOrder readObject(ObjectReader reader) {
         SwapOrder obj = new SwapOrder();
         reader.beginList();
+        Context.println("reading swap order");
         obj.id = reader.readBigInteger();
+        Context.println(obj.id.toString());
         obj.emitter = reader.readString();
+        Context.println(obj.emitter.toString());
+
         obj.srcNID = reader.readString();
+        Context.println(obj.srcNID.toString());
+
         obj.dstNID = reader.readString();
+        Context.println(obj.dstNID.toString());
+
         obj.creator = reader.readString();
+        Context.println(obj.creator.toString());
+
         obj.destinationAddress = reader.readString();
+        Context.println(obj.destinationAddress.toString());
+
         obj.token = reader.readString();
+        Context.println(obj.token.toString());
+
         obj.amount = reader.readBigInteger();
+        Context.println(obj.amount.toString());
+
         obj.toToken = reader.readString();
+        Context.println(obj.toToken.toString());
+
         obj.toAmount = reader.readBigInteger();
+        Context.println(obj.toAmount.toString());
+
         obj.data = reader.readString();
+        Context.println(obj.data.toString());
+
         reader.end();
         return obj;
     }
