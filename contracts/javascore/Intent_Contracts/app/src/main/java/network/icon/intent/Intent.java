@@ -3,35 +3,28 @@ package network.icon.intent;
 import java.math.BigInteger;
 import java.util.Arrays;
 
-import network.icon.intent.constants.Constant;
-import network.icon.intent.structs.Cancel;
+import static network.icon.intent.constants.Constant.*;
+import network.icon.intent.constants.Constant.OrderAction;
+import network.icon.intent.db.SwapOrderDb;
 import network.icon.intent.structs.OrderFill;
 import network.icon.intent.structs.OrderMessage;
-import network.icon.intent.structs.SwapOrder;
-import network.icon.intent.utils.SwapOrderData;
+import network.icon.intent.structs.TokenFallbackData;
 import score.*;
 import score.annotation.EventLog;
 import score.annotation.External;
-import score.annotation.Payable;
-import com.eclipsesource.json.Json;
-import com.eclipsesource.json.JsonObject;
 
 public class Intent extends GeneralizedConnection {
 
-    public final VarDB<BigInteger> depositId = Context.newVarDB(Constant.DEPOSIT_ID, BigInteger.class);
-    public final VarDB<String> networkId = Context.newVarDB(Constant.NETWORK_ID, String.class);
-    public final VarDB<BigInteger> protocolFee = Context.newVarDB(Constant.PROTOCOL_FEE, BigInteger.class);
-    public static final VarDB<Address> feeHandler = Context.newVarDB(Constant.FEE_HANDLER, Address.class);
-    public static final VarDB<Address> owner = Context.newVarDB(Constant.OWNER, Address.class);
-    // public final VarDB<Address> nativeAddress =
-    // Context.newVarDB(Constant.NATIVE_ADDRESS, Address.class);
-    // final static BranchDB<String, DictDB<String, BigInteger>> deposit =
-    // Context.newBranchDB(Constant.DEPOSIT,
-    // BigInteger.class);
-    final static DictDB<BigInteger, SwapOrder> orders = Context.newDictDB(Constant.ORDERS, SwapOrder.class);
-    final static DictDB<byte[], Boolean> finishedOrders = Context.newDictDB(Constant.FINISHED_ORDERS, Boolean.class);
+    public final VarDB<BigInteger> depositId = Context.newVarDB(DEPOSIT_ID, BigInteger.class);
+    public final VarDB<String> networkId = Context.newVarDB(NETWORK_ID, String.class);
+    public final VarDB<BigInteger> protocolFee = Context.newVarDB(PROTOCOL_FEE, BigInteger.class);
+    public static final VarDB<Address> feeHandler = Context.newVarDB(FEE_HANDLER, Address.class);
+    final static DictDB<BigInteger, SwapOrderDb> orders = Context.newDictDB(ORDERS, SwapOrderDb.class);
+    final static DictDB<byte[], Boolean> finishedOrders = Context.newDictDB(FINISHED_ORDERS, Boolean.class);
+    public static BigInteger divideFactor = BigInteger.valueOf(10_000);
 
-    public static Address nativeAddress = Address.fromString("cx0000000000000000000000000000000000000000");
+    public static final String SWAP = "swap";
+    public static final String FILL = "fill";
 
     @EventLog(indexed = 3)
     public void SwapIntent(
@@ -61,46 +54,44 @@ public class Intent extends GeneralizedConnection {
     }
 
     public Intent(String _nid, BigInteger _protocolFee, Address _feeHandler, Address _relayer) {
-        networkId.set(_nid);
-        protocolFee.set(_protocolFee);
-        feeHandler.set(_feeHandler);
-        relayAddress.set(_relayer);
-        // nativeAddress.set(Address.fromString("cx0000000000000000000000000000000000000000"));
-        owner.set(Context.getOwner());
+        if (networkId.get() == null) {
+            networkId.set(_nid);
+            protocolFee.set(_protocolFee);
+            feeHandler.set(_feeHandler);
+            relayAddress.set(_relayer);
+        }
     }
 
     @External
-    @Payable
-    public void swap(SwapOrderData swapOrderData) {
-        Context.require(swapOrderData.token != null, "Token can't be null");
-        Context.require(Context.getCaller().toString().equals(swapOrderData.creator),
-                "Creator must be sender");
-        Context.require(Context.getValue().equals(swapOrderData.amount),
-                "Deposit amount not equal to order amount");
+    public void tokenFallback(Address _from, BigInteger _value, byte[] _data) {
+        TokenFallbackData fallbackData = TokenFallbackData.fromBytes(_data);
+        SwapOrderDb swapOrder = SwapOrderDb.fromBytes(fallbackData.swapOrderData);
+        String type = fallbackData.type;
 
-        Address token = Address.fromString(swapOrderData.token);
-        // Address nativAddress = nativeAddress.get();
-        Context.require(token.equals(nativeAddress), "Not a native token");
+        switch (type) {
+            case SWAP:
+                Context.require(_value.equals(swapOrder.amount), "Value and amount must be equal");
+                Context.require(_from.toString().equals(swapOrder.creator), "Depositer must be creator");
+                _swap(swapOrder);
+                break;
 
-        SwapOrder swapOrder = new SwapOrder(swapOrderData.id, swapOrderData.emitter,
-                swapOrderData.srcNID,
-                swapOrderData.dstNID, swapOrderData.creator,
-                swapOrderData.destinationAddress, swapOrderData.token,
-                swapOrderData.amount, swapOrderData.toToken, swapOrderData.toAmount,
-                swapOrderData.data);
+            case FILL:
+                Address solver = fallbackData.solver;
+                _fill(swapOrder, solver.toString());
+                break;
 
-        // deposit.at(swapOrderData.creator).set(swapOrderData.token,
-        // swapOrderData.amount);
+            default:
+                Context.revert("Message type mismatched(swap/fill)");
+                ;
+        }
 
-        _swap(swapOrder);
     }
 
-    void _swap(SwapOrder swapOrder) {
+    void _swap(SwapOrderDb swapOrder) {
         BigInteger id = this.depositId.getOrDefault(BigInteger.ZERO).add(BigInteger.valueOf(1));
         swapOrder.id = id;
         Context.require(swapOrder.srcNID.equals(this.networkId.get()), "NID is misconfigured");
-        Context.require(swapOrder.emitter.equals(Context.getAddress().toString()),
-                "Emitter specified is not this"); // emitter contract or eoa?
+        Context.require(swapOrder.emitter.equals(Context.getAddress().toString()), "Emitter specified is not this");
         orders.set(id, swapOrder);
         SwapIntent(id, swapOrder.emitter, swapOrder.srcNID, swapOrder.dstNID,
                 swapOrder.creator,
@@ -109,12 +100,7 @@ public class Intent extends GeneralizedConnection {
                 swapOrder.data);
     }
 
-    @External
-    @Payable
-    public void fill(SwapOrderData swapOrderData, String solverAddress) {
-        SwapOrder swapOrder = new SwapOrder(swapOrderData.id, swapOrderData.emitter, swapOrderData.srcNID,
-                swapOrderData.dstNID, swapOrderData.creator, swapOrderData.destinationAddress, swapOrderData.token,
-                swapOrderData.amount, swapOrderData.toToken, swapOrderData.toAmount, swapOrderData.data);
+    void _fill(SwapOrderDb swapOrder, String solverAddress) {
 
         byte[] orderBytes = swapOrder.toBytes();
         byte[] orderHash = Context.hash("keccak-256", orderBytes);
@@ -124,8 +110,7 @@ public class Intent extends GeneralizedConnection {
         Context.require(!isFilled, "Order has already been filled");
         finishedOrders.set(orderHash, true);
 
-        BigInteger fee = swapOrder.toAmount.multiply(protocolFee.get()).divide(BigInteger.valueOf(10000)); // add divide
-                                                                                                           // by 10000
+        BigInteger fee = swapOrder.toAmount.multiply(protocolFee.get()).divide(divideFactor);
         BigInteger toAmount = swapOrder.toAmount.subtract(fee);
 
         _transferResult(swapOrder.destinationAddress, swapOrder.toToken, toAmount,
@@ -137,14 +122,14 @@ public class Intent extends GeneralizedConnection {
             _resolveFill(networkId.get(), orderFill);
             return;
         }
-        OrderMessage orderMessage = new OrderMessage(Constant.FILL, orderHash);
+        OrderMessage orderMessage = new OrderMessage(OrderAction.FILL.getValue(), orderHash);
         _sendMessage(swapOrder.srcNID, Context.hash("keccak-256", orderMessage.toBytes()));
         OrderFilled(swapOrder.id, swapOrder.srcNID);
     }
 
     @External
     public void cancel(BigInteger id) {
-        SwapOrder order = orders.get(id);
+        SwapOrderDb order = orders.get(id);
         if (order == null) {
             Context.revert("Order already has been cancelled");
         }
@@ -152,14 +137,12 @@ public class Intent extends GeneralizedConnection {
                 "Only creator can cancel this order");
 
         if (order.srcNID.equals(order.dstNID)) {
-            _resolveCancel(nativeAddress.toString(), order.toBytes());
+            _resolveCancel(networkId.get(), order.toBytes());
             return;
         }
 
-        Cancel cancel = new Cancel();
-        cancel.orderBytes = order.toBytes();
+        OrderMessage _msg = new OrderMessage(OrderAction.CANCEL.getValue(), order.toBytes());
 
-        OrderMessage _msg = new OrderMessage(Constant.CANCEL, cancel.orderBytes);
         _sendMessage(order.dstNID, _msg.toBytes());
     }
 
@@ -169,12 +152,11 @@ public class Intent extends GeneralizedConnection {
 
         OrderMessage orderMessage = OrderMessage.fromBytes(_msg);
 
-        if (orderMessage.messageType.equals(Constant.FILL)) {
+        if (orderMessage.messageType.equals(OrderAction.FILL.getValue())) {
             OrderFill _fill = OrderFill.fromBytes(orderMessage.message);
             _resolveFill(srcNetwork, _fill);
-        } else if (orderMessage.messageType.equals(Constant.CANCEL)) {
-            Cancel _cancel = Cancel.fromBytes(orderMessage.message);
-            _resolveCancel(srcNetwork, _cancel.orderBytes);
+        } else if (orderMessage.messageType.equals(OrderAction.CANCEL.getValue())) {
+            _resolveCancel(srcNetwork, orderMessage.message);
         }
     }
 
@@ -184,15 +166,15 @@ public class Intent extends GeneralizedConnection {
             return;
         }
 
-        SwapOrder order = SwapOrder.fromBytes(orderBytes);
+        SwapOrderDb order = SwapOrderDb.fromBytes(orderBytes);
 
-        Context.require(order.srcNID.equals(srcNetwork), "Invalid Network");
+        Context.require(order.srcNID.equals(networkId.get()), "Invalid Network");
 
         finishedOrders.set(orderHash, true);
 
         OrderFill _fill = new OrderFill(order.id, orderBytes, order.creator);
 
-        OrderMessage _msg = new OrderMessage(Constant.FILL, _fill.toBytes());
+        OrderMessage _msg = new OrderMessage(OrderAction.FILL.getValue(), _fill.toBytes());
 
         _sendMessage(order.srcNID, _msg.toBytes());
 
@@ -200,7 +182,7 @@ public class Intent extends GeneralizedConnection {
     }
 
     void _resolveFill(String srcNetwork, OrderFill _fill) {
-        SwapOrder order = orders.get(_fill.id);
+        SwapOrderDb order = orders.get(_fill.id);
         if (order == null) {
             Context.revert("There is no order to resolve");
         }
@@ -215,83 +197,17 @@ public class Intent extends GeneralizedConnection {
         OrderClosed(_fill.id);
 
         Address tokenAddress = Address.fromString(order.token);
-        if (tokenAddress.equals(nativeAddress)) {
-            Context.transfer(Address.fromString(_fill.solver), order.amount);
-        } else {
-            Context.call(tokenAddress, "transfer", Address.fromString(_fill.solver), order.amount);
-        }
+        Context.call(tokenAddress, "transfer", Address.fromString(_fill.solver), order.amount);
     }
 
     void _transferResult(String _toAddress, String _toToken, BigInteger amount,
             BigInteger fee) {
         Address toAddress = Address.fromString(_toAddress);
         Address toTokenAddress = Address.fromString(_toToken);
-        if (toTokenAddress.equals(nativeAddress)) {
-            Context.require(Context.getValue().equals(amount.add(fee)), "\"Deposit amount not equal to order amount\"");
-            _nativeTransfer(toAddress, amount);
-            _nativeTransfer(feeHandler.get(), fee);
-        } else {
-            Context.call(toTokenAddress, "transfer", toAddress,
-                    amount);
-            Context.call(toTokenAddress, "transfer",
-                    feeHandler.get(), fee);
-        }
-    }
-
-    void _nativeTransfer(Address to, BigInteger amount) {
-        Context.transfer(to, amount);
-    }
-
-    @External
-    public void tokenFallback(Address _from, BigInteger _value, byte[] _data) {
-        Context.require(_value.compareTo(BigInteger.ZERO) > 0, "Zero transfers not allowed");
-
-        String unpackedData = new String(_data);
-        Context.require(!unpackedData.equals(""), "Token Fallback: Data can't be empty");
-        JsonObject json = Json.parse(unpackedData).asObject();
-
-        // string(address of depositer) -> string (deposits token address) -> amountof
-        // token
-        // String depositor = json.get("depositor").asString();
-        // String token = json.get("token").asString();
-        // BigInteger amount = new BigInteger(json.get("amount").asString());
-        SwapOrder swapOrder = SwapOrder
-                .fromBytes(hexStringToByteArray(json.get("swapOrderDataBytes").asString()));
-        Context.require(_value.equals(swapOrder.amount), "Value and amount must be equal");
-        Context.require(_from.toString().equals(swapOrder.creator), "Depositer must be creator");
-        String type = json.get("type").asString();
-        // token validated context.getCaller()
-        // deposit.at(depositor).set(token, amount);
-        if (type.equals("swap")) {
-
-            // deposit.at(swapOrder.creator).set(swapOrder.token, swapOrder.amount);
-
-            // Context.require(amount.equals(swapOrder.amount), "Token amount must be
-            // equal");
-            // Context.require(swapOrder.getToken() != null, "Token can't be null");
-            // Context.require(Context.getCaller().toString().equals(swapOrder.getCreator()),
-            // "Creator must be sender");
-            _swap(swapOrder);
-        } else {
-
-            SwapOrderData swapOrderData = new SwapOrderData();
-            swapOrderData.id = swapOrder.id;
-            swapOrderData.emitter = swapOrder.emitter;
-            swapOrderData.srcNID = swapOrder.srcNID;
-            swapOrderData.dstNID = swapOrder.dstNID;
-            swapOrderData.creator = swapOrder.creator;
-            swapOrderData.destinationAddress = swapOrder.destinationAddress;
-            swapOrderData.token = swapOrder.token;
-            swapOrderData.amount = swapOrder.amount;
-            swapOrderData.toToken = swapOrder.toToken;
-            swapOrderData.toAmount = swapOrder.toAmount;
-            swapOrderData.data = swapOrder.data;
-
-            String solver = json.get("solver").asString();
-            fill(swapOrderData, solver);
-        }
-        ;
-
+        Context.call(toTokenAddress, "transfer", toAddress,
+                amount);
+        Context.call(toTokenAddress, "transfer",
+                feeHandler.get(), fee);
     }
 
     @External
@@ -315,7 +231,7 @@ public class Intent extends GeneralizedConnection {
         return feeHandler.get();
     }
 
-    public static SwapOrder getOrders(BigInteger id) {
+    public static SwapOrderDb getOrders(BigInteger id) {
         return orders.get(id);
     }
 
@@ -323,33 +239,7 @@ public class Intent extends GeneralizedConnection {
         return finishedOrders.getOrDefault(messageHash, false);
     }
 
-    // public static BigInteger getDepositAmount(String depositer, String token) {
-    // return deposit.at(depositer).getOrDefault(token, BigInteger.ZERO);
-    // }
-
     static void OnlyOwner() {
-        Context.require(owner.get().equals(Context.getCaller()), "Not Owner");
-    }
-
-    // public static String extractAddress(String input) {
-    // if (input.contains("0x2.icon/")) {
-    // int lastSlashIndex = input.lastIndexOf('/');
-    // if (lastSlashIndex != -1 && lastSlashIndex < input.length() - 1) {
-    // return input.substring(lastSlashIndex + 1);
-    // }
-    // } else {
-    // return input;
-    // }
-    // return null;
-    // }
-
-    public static byte[] hexStringToByteArray(String s) {
-        int len = s.length();
-        byte[] data = new byte[len / 2];
-        for (int i = 0; i < len; i += 2) {
-            data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
-                    + Character.digit(s.charAt(i + 1), 16));
-        }
-        return data;
+        Context.require(Context.getOwner().equals(Context.getCaller()), "Not Owner");
     }
 }

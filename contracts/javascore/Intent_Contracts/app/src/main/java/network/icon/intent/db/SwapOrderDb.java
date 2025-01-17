@@ -1,13 +1,12 @@
-package network.icon.intent.structs;
+package network.icon.intent.db;
 
 import java.math.BigInteger;
-
 import score.ByteArrayObjectWriter;
 import score.Context;
 import score.ObjectReader;
 import score.ObjectWriter;
 
-public class SwapOrder {
+public class SwapOrderDb {
     public BigInteger id; // unique ID
     public String emitter;// Address of emitter contract
     public String srcNID; // Source Network ID
@@ -20,7 +19,7 @@ public class SwapOrder {
     public BigInteger toAmount; // Minimum amount of the toToken to receive
     public byte[] data; // Additional data (if any) for future use (is this the right type?)
 
-    public SwapOrder(BigInteger id, String emitter, String srcNID, String dstNID, String creator,
+    public SwapOrderDb(BigInteger id, String emitter, String srcNID, String dstNID, String creator,
             String destinationAddress, String token, BigInteger amount, String toToken, BigInteger toAmount,
             byte[] data) {
         this.id = id;
@@ -36,50 +35,27 @@ public class SwapOrder {
         this.data = data;
     }
 
-    private SwapOrder() {
+    private SwapOrderDb() {
     }
 
-    public static void writeObject(ObjectWriter writer, SwapOrder obj) {
+    public static void writeObject(ObjectWriter writer, SwapOrderDb obj) {
         obj.writeObject(writer);
     }
 
-    // add read object method
-    public static SwapOrder readObject(ObjectReader reader) {
-        SwapOrder obj = new SwapOrder();
+    public static SwapOrderDb readObject(ObjectReader reader) {
+        SwapOrderDb obj = new SwapOrderDb();
         reader.beginList();
-        Context.println("reading swap order");
         obj.id = reader.readBigInteger();
-        Context.println(obj.id.toString());
         obj.emitter = reader.readString();
-        Context.println(obj.emitter.toString());
-
         obj.srcNID = reader.readString();
-        Context.println(obj.srcNID.toString());
-
         obj.dstNID = reader.readString();
-        Context.println(obj.dstNID.toString());
-
         obj.creator = reader.readString();
-        Context.println(obj.creator.toString());
-
         obj.destinationAddress = reader.readString();
-        Context.println(obj.destinationAddress.toString());
-
         obj.token = reader.readString();
-        Context.println(obj.token.toString());
-
         obj.amount = reader.readBigInteger();
-        Context.println(obj.amount.toString());
-
         obj.toToken = reader.readString();
-        Context.println(obj.toToken.toString());
-
         obj.toAmount = reader.readBigInteger();
-        Context.println(obj.toAmount.toString());
-
         obj.data = reader.readByteArray();
-        Context.println(obj.data.toString());
-
         reader.end();
         return obj;
     }
@@ -102,12 +78,21 @@ public class SwapOrder {
 
     public byte[] toBytes() {
         ByteArrayObjectWriter writer = Context.newByteArrayObjectWriter("RLPn");
-        SwapOrder.writeObject(writer, this);
+        SwapOrderDb.writeObject(writer, this);
         return writer.toByteArray();
     }
 
-    public static SwapOrder fromBytes(byte[] bytes) {
+    public static SwapOrderDb fromBytes(byte[] bytes) {
         ObjectReader reader = Context.newByteArrayObjectReader("RLPn", bytes);
+        return readObject(reader);
+    }
+
+    public SwapOrderDb fromBytesAndProperties(byte[] bytes, String token, BigInteger amount) {
+        ObjectReader reader = Context.newByteArrayObjectReader("RLPn", bytes);
+        this.token = token;
+        this.amount = amount;
+        this.emitter = Context.getAddress().toString();
+        this.creator = Context.getCaller().toString();
         return readObject(reader);
     }
 
