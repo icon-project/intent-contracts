@@ -1,3 +1,4 @@
+import { encode as rlpEncode } from 'rlp';
 import { BigNumberish } from "ethers";
 
 // Define the SwapOrder structure as a TypeScript interface
@@ -85,7 +86,7 @@ export class SwapOrder implements SwapOrderInterface {
     }
 
     public toStruct(): any {
-        return  {
+        return {
             id: this.id,
             emitter: this.emitter,
             srcNID: this.srcNID,
@@ -122,6 +123,64 @@ export class SwapOrder implements SwapOrderInterface {
             if (a[i] !== b[i]) return false;
         }
         return true;
+    }
+
+    /**
+     * Converts the SwapOrder to RLP encoded bytes for ICON compatibility
+     * Matches the Java contract's RLP encoding format
+     */
+    public toICONBytes(): Uint8Array {
+        // Convert BigInt values to hex strings without '0x' prefix
+        const idHex = this.id.toString(16).padStart(64, '0');
+        const amountHex = this.amount.toString(16).padStart(64, '0');
+        const toAmountHex = this.toAmount.toString(16).padStart(64, '0');
+
+        // Create array of values in the same order as Java contract
+        const values = [
+            this.uintToBytes(this.id.valueOf()),          // uint256 -> bytes
+            Buffer.from(this.emitter),          // string -> bytes
+            Buffer.from(this.srcNID),           // string -> bytes
+            Buffer.from(this.dstNID),           // string -> bytes
+            Buffer.from(this.creator),          // string -> bytes
+            Buffer.from(this.destinationAddress),// string -> bytes
+            Buffer.from(this.token),            // string -> bytes
+            this.uintToBytes(this.amount.valueOf()),      // uint256 -> bytes
+            Buffer.from(this.toToken),          // string -> bytes
+            this.uintToBytes(this.toAmount.valueOf()),    // uint256 -> bytes
+            Buffer.from(this.data )                         // already bytes
+        ];
+
+        // RLP encode the array
+        return new Uint8Array(rlpEncode(values));
+    }
+
+    public uintToBytes(x: bigint): Uint8Array {
+        if (x === BigInt(0)) {
+            return new Uint8Array([0]);
+        }
+        let right = BigInt(0x80);
+        for (let i = 1; i < 32; i++) {
+            if (x < right) {
+                return this.lastBytesOf(x, i);
+            }
+            right <<= BigInt(8);
+        }
+        if (x < right) {
+            return rlpEncode(x);
+        } else {
+            const data = rlpEncode(x);
+            data[0] = 0;
+            return data;
+        }
+    }
+    
+    public lastBytesOf(x: bigint, i: number): Uint8Array {
+        const buffer = new ArrayBuffer(i);
+        const view = new DataView(buffer);
+        for (let j = 0; j < i; j++) {
+            view.setUint8(j, Number((x >> BigInt(8 * (i - j - 1))) & BigInt(0xff)));
+        }
+        return new Uint8Array(buffer);
     }
 
 }

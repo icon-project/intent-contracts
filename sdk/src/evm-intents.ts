@@ -85,22 +85,35 @@ export class EVMIntents{
         return [signature, permit]
     }
 
-    async orderETHNative(swapOrder: SwapOrder ): Promise<any> {
-        return await this.intents.swap(swapOrder.toData(), {value:swapOrder.amount})
+    private async getGasConfig() {
+        const feeData = await this.provider.getFeeData();
+        // Ensure minimum gas prices are met by multiplying by 1.5
+        const multiplier = 1.5;
+        return {
+            maxFeePerGas: feeData.maxFeePerGas?.mul(Math.ceil(multiplier)),
+            maxPriorityFeePerGas: BigInt(25000000000) // Set minimum priority fee to 25 GWEI
+        };
     }
 
-    async submitPermit2Order(swapOrder: SwapOrder, signature: string, permit: PermitTransferFrom ): Promise<any> {
-        return await this.intents.swapPermit2(swapOrder.toData(), signature, permit)
+    async submitPermit2Order(swapOrder: SwapOrder, signature: string, permit: PermitTransferFrom): Promise<any> {
+        const gasConfig = await this.getGasConfig();
+        return await this.intents.swapPermit2(swapOrder.toData(), signature, permit, gasConfig);
     }
 
-    async fillOrder(swapOrder: SwapOrder, repayAddress: string ): Promise<any> {
+    async fillOrder(swapOrder: SwapOrder, repayAddress: string): Promise<any> {
         var value = BigInt(0);
-        if (swapOrder.toToken == "0x0000000000000000000000000000000000000000"){
-            value = swapOrder.toAmount.valueOf()
+        if (swapOrder.toToken == "0x0000000000000000000000000000000000000000") {
+            value = swapOrder.toAmount.valueOf();
         } else {
             // approve token
         }
-        return await this.intents.fill(swapOrder.toData(), repayAddress, {value:value})
+        const gasConfig = await this.getGasConfig();
+        return await this.intents.fill(swapOrder.toData(), repayAddress, { ...gasConfig, value: value });
+    }
+
+    async orderETHNative(swapOrder: SwapOrder): Promise<any> {
+        const gasConfig = await this.getGasConfig();
+        return await this.intents.swap(swapOrder.toData(), { ...gasConfig, value: swapOrder.amount });
     }
 
     async getBalance(token: string , address: string ): Promise<BigInt> {
