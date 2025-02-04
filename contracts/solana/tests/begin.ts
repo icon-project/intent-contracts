@@ -23,7 +23,7 @@ describe("Initialize", () => {
         signer: wallet.publicKey,
         systemProgram: SYSTEM_PROGRAM_ID,
         config: IntentPda.config().pda,
-        vaultNativeAccount: IntentPda.vaultNative().pda,
+        nativeVaultAccount: IntentPda.vaultNative().pda,
       })
       .instruction();
 
@@ -49,7 +49,7 @@ describe("Initialize", () => {
           signer: wallet.publicKey,
           systemProgram: SYSTEM_PROGRAM_ID,
           config: IntentPda.config().pda,
-          vaultNativeAccount: IntentPda.vaultNative().pda,
+          nativeVaultAccount: IntentPda.vaultNative().pda,
         })
         .instruction();
 

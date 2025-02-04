@@ -14,8 +14,8 @@ pub fn initialize(
         ctx.bumps.config,
     );
     ctx.accounts
-        .vault_native_account
-        .new(ctx.bumps.vault_native_account);
+        .native_vault_account
+        .new(ctx.bumps.native_vault_account);
 
     Ok(())
 }
@@ -60,7 +60,7 @@ pub struct InitializeCtx<'info> {
         seeds = [VaultNative::SEED_PREFIX.as_bytes()],
         bump,
     )]
-    pub vault_native_account: Account<'info, VaultNative>,
+    pub native_vault_account: Account<'info, VaultNative>,
 
     /// The account that signs and pays for the transaction. This account is mutable
     /// because it will be debited for any fees or rent required during the transaction.

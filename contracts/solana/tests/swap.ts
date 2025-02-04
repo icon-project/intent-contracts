@@ -68,8 +68,8 @@ describe("Swap", async () => {
     assert.equal(signerAccount.amount.toString(), expectedBalance.toString());
 
     // check vault token balance
-    const vaultTokenAccount = await ctx.getVaultTokenAccount();
-    assert.equal(vaultTokenAccount.amount.toString(), amount.toString());
+    const tokenVaultAccount = await ctx.getVaultTokenAccount();
+    assert.equal(tokenVaultAccount.amount.toString(), amount.toString());
 
     // deposit id should be increased
     let config = await ctx.getConfig();
@@ -202,8 +202,8 @@ describe("Swap", async () => {
           amount.toNumber(),
           toAmount.toNumber()
         ).pda,
-        vaultNativeAccount: IntentPda.vaultNative().pda,
-        vaultTokenAccount: null,
+        nativeVaultAccount: IntentPda.vaultNative().pda,
+        tokenVaultAccount: null,
         signerTokenAccount: null,
         mint: null,
         tokenProgram: TOKEN_PROGRAM_ID,

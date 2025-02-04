@@ -10,26 +10,29 @@ use crate::{
 pub fn swap_order(ctx: Context<SwapCtx>, order: SwapOrder) -> Result<()> {
     let mut order = order;
 
+    order.set_emitter(crate::id().to_string());
+    order.set_src_nid(ctx.accounts.config.network_id.clone());
     order.set_id(ctx.accounts.config.increment_deposit_id());
+
     ctx.accounts
         .order_account
         .new(&order, ctx.bumps.order_account);
 
     // Escrows amount from user
     if order.token() == NATIVE_ADDRESS {
-        if ctx.accounts.vault_token_account.is_some() {
+        if ctx.accounts.token_vault_account.is_some() {
             return Err(IntentError::VaultTokenAccountMustNotBeSpecified.into());
         }
 
-        let vault_native_account = ctx
+        let native_vault_account = ctx
             .accounts
-            .vault_native_account
+            .native_vault_account
             .as_ref()
-            .ok_or(IntentError::VaultNativeAccountIsMissing)?;
+            .ok_or(IntentError::NativeVaultAccountIsMissing)?;
 
         helpers::transfer_sol(
             &ctx.accounts.signer,
-            &vault_native_account.to_account_info(),
+            &native_vault_account.to_account_info(),
             order.amount() as u64,
             &ctx.accounts.system_program,
         )?;
@@ -40,15 +43,15 @@ pub fn swap_order(ctx: Context<SwapCtx>, order: SwapOrder) -> Result<()> {
             .as_ref()
             .ok_or(IntentError::SignerTokenAccountIsMissing)?;
 
-        let vault_token_account = ctx
+        let token_vault_account = ctx
             .accounts
-            .vault_token_account
+            .token_vault_account
             .as_ref()
-            .ok_or(IntentError::VaultTokenAccountIsMissing)?;
+            .ok_or(IntentError::TokenVaultAccountIsMissing)?;
 
         helpers::transfer_spl_token(
             user_token_account.to_account_info(),
-            vault_token_account.to_account_info(),
+            token_vault_account.to_account_info(),
             ctx.accounts.signer.to_account_info(),
             order.amount() as u64,
             ctx.accounts.token_program.to_account_info(),
@@ -83,11 +86,7 @@ pub struct SwapCtx<'info> {
 
     pub system_program: Program<'info, System>,
 
-    #[account(
-        mut,
-        constraint = order.src_nid() == config.network_id @IntentError::NetworkIdMisconfigured,
-        constraint = order.emitter() == crate::id().to_string() @IntentError::InvalidEmitterAddress
-    )]
+    #[account(mut)]
     pub config: Box<Account<'info, Config>>,
 
     #[account(
@@ -109,7 +108,7 @@ pub struct SwapCtx<'info> {
         seeds = [VaultNative::SEED_PREFIX.as_bytes()],
         bump
     )]
-    pub vault_native_account: Option<Box<Account<'info, VaultNative>>>,
+    pub native_vault_account: Option<Box<Account<'info, VaultNative>>>,
 
     #[account(
         init_if_needed,
@@ -119,7 +118,7 @@ pub struct SwapCtx<'info> {
         seeds = [VAULT_TOKEN_SEED_PREFIX.as_bytes(), &Pubkey::from_str(&order.token()).unwrap().to_bytes()],
         bump
     )]
-    pub vault_token_account: Option<Box<Account<'info, TokenAccount>>>,
+    pub token_vault_account: Option<Box<Account<'info, TokenAccount>>>,
 
     #[account(
         mut,
