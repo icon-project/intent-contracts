@@ -151,13 +151,6 @@ pub fn store_network_id(e: &Env, network_id: &String) {
     extend_instance(&e);
 }
 
-pub fn store_native_token(e: &Env, address: &Address) {
-    e.storage()
-        .instance()
-        .set(&StorageKey::NativeToken, address);
-    extend_instance(&e);
-}
-
 pub fn store_fee_handler(e: &Env, address: &Address) {
     e.storage()
         .instance()

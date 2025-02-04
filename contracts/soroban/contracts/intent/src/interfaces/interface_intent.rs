@@ -7,7 +7,6 @@ pub trait IIntent {
         network_id: String,
         admin: Address,
         fee_handler: Address,
-        native_token: Address,
         upgrade_authority: Address,
     ) -> Result<(), ContractError>;
 

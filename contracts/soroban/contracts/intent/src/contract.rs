@@ -20,13 +20,11 @@ impl IIntent for Intent {
         network_id: String,
         admin: Address,
         fee_handler: Address,
-        native_token: Address,
         upgrade_authority: Address,
     ) -> Result<(), ContractError> {
         storage::is_initialized(&env)?;
 
         storage::store_admin(&env, &admin);
-        storage::store_native_token(&env, &native_token);
         storage::store_network_id(&env, &network_id);
         storage::store_fee_handler(&env, &fee_handler);
         storage::store_upgrade_authority(&env, &upgrade_authority);

@@ -48,7 +48,6 @@ impl TestContext {
             &self.nid.clone(),
             &self.admin.clone(),
             &self.fee_handler.clone(),
-            &self.native_token.clone(),
             &self.upgrade_authority.clone(),
         );
 
