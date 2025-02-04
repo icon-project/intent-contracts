@@ -10,6 +10,12 @@ pub const QUERY_FILL_ACCOUNTS_IX: &str = "query_fill_accounts";
 pub const QUERY_CANCEL_ACCOUNTS_IX: &str = "query_cancel_accounts";
 pub const QUERY_RECV_MESSAGE_ACCOUNTS_IX: &str = "query_recv_message_accounts";
 
+#[derive(Debug, Clone)]
+pub enum Resolve {
+    Fill(OrderFill),
+    Cancel(Cancel)
+}
+
 #[derive(Debug, Clone, AnchorSerialize, AnchorDeserialize)]
 pub struct ResolveFillArgs {
     pub src_network: String,

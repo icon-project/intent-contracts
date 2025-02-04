@@ -31,8 +31,7 @@ pub fn recv_message<'info>(
             let order = SwapOrder::try_from(&fill.order_bytes())?;
             invoke_resolve(
                 src_network.clone(),
-                Some(fill),
-                None,
+                Resolve::Fill(fill),
                 order,
                 &ctx.accounts.signer,
                 &ctx.accounts.system_program,
@@ -46,8 +45,7 @@ pub fn recv_message<'info>(
             let order = SwapOrder::try_from(&cancel.order_bytes())?;
             invoke_resolve(
                 src_network.clone(),
-                None,
-                Some(cancel),
+                Resolve::Cancel(cancel),
                 order,
                 &ctx.accounts.signer,
                 &ctx.accounts.system_program,
@@ -61,8 +59,7 @@ pub fn recv_message<'info>(
 
 pub fn invoke_resolve<'info>(
     src_network: String,
-    fill: Option<OrderFill>,
-    cancel: Option<Cancel>,
+    resolve: Resolve,
     order: SwapOrder,
     signer: &Signer<'info>,
     system_program: &Program<'info, System>,
@@ -72,23 +69,27 @@ pub fn invoke_resolve<'info>(
 ) -> Result<()> {
     let mut data = vec![];
     let mut ix_name = RESOLVE_FILL_IX;
-
-    if fill.is_some() {
-        let args = ResolveFillArgs {
-            src_network: src_network.clone(),
-            fill: fill.unwrap(),
-            order,
-        };
-        args.serialize(&mut data)?;
-    } else {
-        let args = ResolveCancelArgs {
-            src_network: src_network.clone(),
-            cancel: cancel.unwrap(),
-            order,
-        };
-        args.serialize(&mut data)?;
-        ix_name = RESOLVE_CANCEL_IX;
+    
+    match resolve {
+        Resolve::Fill(fill) => {
+            let args = ResolveFillArgs {
+                src_network: src_network.clone(),
+                fill,
+                order,
+            };
+            args.serialize(&mut data)?;
+        },
+        Resolve::Cancel(cancel) => {
+            let args = ResolveCancelArgs {
+                src_network: src_network.clone(),
+                cancel,
+                order,
+            };
+            args.serialize(&mut data)?;
+            ix_name = RESOLVE_CANCEL_IX;
+        },
     }
+
     let ix_data = helpers::get_instruction_data(ix_name, data);
 
     let mut account_metas: Vec<AccountMeta> = vec![

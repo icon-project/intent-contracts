@@ -18,6 +18,7 @@ use crate::{
         order_fill::OrderFill,
         order_message::{MessageType, OrderMessage},
         swap_order::SwapOrder,
+        misc::Resolve,
     },
 };
 
@@ -94,8 +95,7 @@ pub fn order_fill<'info>(
     if order.src_nid() == order.dst_nid() {
         invoke_resolve(
             config.network_id.clone(),
-            Some(fill),
-            None,
+            Resolve::Fill(fill),
             order,
             &ctx.accounts.signer,
             &ctx.accounts.system_program,
