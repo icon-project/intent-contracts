@@ -1,12 +1,12 @@
 [workspace]
 resolver = "2"
 members = [
-  "contracts/*",
-  "libs/*"
+  "contracts/*"
 ]
 
 [workspace.dependencies]
-soroban-sdk = "20.5.0"
+soroban-sdk = "21.7.4"
+soroban-rlp = { git = "http://github.com/icon-project/xcall-multi", branch = "main" }
 
 [profile.release]
 opt-level = "z"
