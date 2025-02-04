@@ -9,18 +9,13 @@ pub fn swap_order(env: &Env, order: SwapOrder) -> Result<(), ContractError> {
 
     sender.require_auth();
 
-    if order.src_nid() != storage::nid(&env)? {
-        return Err(ContractError::NetworkIdMisconfigured);
-    }
-    if order.emitter() != contract_address.to_string() {
-        return Err(ContractError::InvalidEmitterAddress);
-    }
-
     let token = Address::from_string(&order.token());
     helpers::transfer_token(&env, &token, &sender, &contract_address, order.amount());
 
     let deposit_id = storage::increment_deposit_id(&env);
     order.set_id(deposit_id);
+    order.set_src_nid(storage::nid(&env)?);
+    order.set_emitter(contract_address.to_string());
 
     storage::store_order(&env, deposit_id, &order);
     event::swap_intent(

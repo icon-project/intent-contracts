@@ -65,6 +65,14 @@ impl SwapOrder {
         self.id = id
     }
 
+    pub fn set_src_nid(&mut self, nid: String) {
+        self.src_nid = nid
+    }
+
+    pub fn set_emitter(&mut self, emitter: String) {
+        self.emitter = emitter
+    }
+
     pub fn emitter(&self) -> String {
         self.emitter.clone()
     }

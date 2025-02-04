@@ -9,31 +9,6 @@ use super::setup::TestContext;
 use crate::{contract::IntentClient, event::SwapIntent, types::SwapOrder};
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #12)")]
-fn test_swap_with_misconfigured_network_id() {
-    let ctx = TestContext::default();
-    let client = IntentClient::new(&ctx.env, &ctx.contract);
-    ctx.init_context(&client);
-
-    let src_nid = String::from_str(&ctx.env, "icon");
-    let order = SwapOrder::new(
-        1,
-        ctx.contract.to_string(),
-        src_nid,
-        String::from_str(&ctx.env, "solana"),
-        ctx.admin.to_string(),
-        ctx.admin.to_string(),
-        ctx.native_token.to_string(),
-        100,
-        ctx.native_token.to_string(),
-        100,
-        bytes!(&ctx.env, 0x00),
-    );
-
-    client.swap(&order);
-}
-
-#[test]
 #[should_panic(expected = "HostError: Error(Contract, #10)")]
 fn test_swap_with_invalid_emitter_address() {
     let ctx = TestContext::default();

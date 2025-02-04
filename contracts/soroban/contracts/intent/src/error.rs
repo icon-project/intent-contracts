@@ -13,7 +13,5 @@ pub enum ContractError {
     OrderNotFound = 7,
     OrderAlreadyFilled = 8,
     OrderMismatched = 9,
-    InvalidEmitterAddress = 10,
-    InvalidNetwork = 11,
-    NetworkIdMisconfigured = 12,
+    InvalidNetwork = 10,
 }

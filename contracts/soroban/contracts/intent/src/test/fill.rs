@@ -188,7 +188,7 @@ fn test_resolve_fill() {
 }
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #11)")]
+#[should_panic(expected = "HostError: Error(Contract, #10)")]
 fn test_resolve_fill_with_invalid_network_id() {
     let ctx = TestContext::default();
     let client = IntentClient::new(&ctx.env, &ctx.contract);
