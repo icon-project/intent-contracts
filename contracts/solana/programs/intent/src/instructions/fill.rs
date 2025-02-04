@@ -133,23 +133,23 @@ pub fn resolve_fill(
     }
 
     if order.token() == NATIVE_ADDRESS {
-        let vault_native_account = ctx
+        let native_vault_account = ctx
             .accounts
-            .vault_native_account
+            .native_vault_account
             .as_mut()
-            .ok_or(IntentError::VaultNativeAccountIsMissing)?;
+            .ok_or(IntentError::NativeVaultAccountIsMissing)?;
 
         transfer_sol_signed(
-            &vault_native_account.to_account_info(),
+            &native_vault_account.to_account_info(),
             &ctx.accounts.solver.to_account_info(),
             order.amount() as u64,
         )?;
     } else {
-        let vault_token_account = ctx
+        let token_vault_account = ctx
             .accounts
-            .vault_token_account
+            .token_vault_account
             .as_ref()
-            .ok_or(IntentError::VaultTokenAccountIsMissing)?;
+            .ok_or(IntentError::TokenVaultAccountIsMissing)?;
 
         let solver_token_account = ctx
             .accounts
@@ -158,7 +158,7 @@ pub fn resolve_fill(
             .ok_or(IntentError::SolverTokenAccountIsMissing)?;
 
         transfer_spl_token_signed(
-            vault_token_account.to_account_info(),
+            token_vault_account.to_account_info(),
             solver_token_account.to_account_info(),
             ctx.accounts.config.to_account_info(),
             order.amount() as u64,
@@ -297,9 +297,9 @@ pub struct ResolveFillCtx<'info> {
     #[account(
         mut,
         seeds = [VaultNative::SEED_PREFIX.as_bytes()],
-        bump = vault_native_account.bump
+        bump = native_vault_account.bump
       )]
-    pub vault_native_account: Option<Account<'info, VaultNative>>,
+    pub native_vault_account: Option<Account<'info, VaultNative>>,
 
     /// Vault token account
     #[account(
@@ -309,7 +309,7 @@ pub struct ResolveFillCtx<'info> {
         seeds = [VAULT_TOKEN_SEED_PREFIX.as_bytes(), &Pubkey::from_str(&order.token()).unwrap().to_bytes()],
         bump
       )]
-    pub vault_token_account: Option<Account<'info, TokenAccount>>,
+    pub token_vault_account: Option<Account<'info, TokenAccount>>,
 
     #[account(
         constraint = mint.key().to_string() == order_account.order.token() @IntentError::MintAccountMismatch

@@ -11,9 +11,6 @@ pub enum IntentError {
     #[msg("Only fee handler")]
     OnlyFeeHandler,
 
-    #[msg("Network ID is misconfigured")]
-    NetworkIdMisconfigured,
-
     #[msg("Invalid network")]
     InvalidNetwork,
 
@@ -22,9 +19,6 @@ pub enum IntentError {
 
     #[msg("Rlp decode failed")]
     DecodeFailed,
-
-    #[msg("Emitter program ID is not valid")]
-    InvalidEmitterAddress,
 
     #[msg("Destination account is not valid")]
     InvalidDestinationAccount,
@@ -59,11 +53,11 @@ pub enum IntentError {
     #[msg("Order account is missing")]
     OrderAccountIsMissing,
 
-    #[msg("Vault native account is missing")]
-    VaultNativeAccountIsMissing,
+    #[msg("Native vault account is missing")]
+    NativeVaultAccountIsMissing,
 
-    #[msg("Vault token account is missing")]
-    VaultTokenAccountIsMissing,
+    #[msg("Token vault account is missing")]
+    TokenVaultAccountIsMissing,
 
     #[msg("Signer token account is missing")]
     SignerTokenAccountIsMissing,
