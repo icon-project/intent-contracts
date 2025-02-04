@@ -1,131 +1,26 @@
 buildscript {
-    repositories {
-        mavenLocal()
-        mavenCentral()
-    }
-    dependencies {
-        classpath("foundation.icon:gradle-javaee-plugin:$javaeePluginVersion")
-        classpath 'com.squareup.wire:wire-gradle-plugin:4.5.0'
-    }
+  repositories {
+    mavenCentral()
+  }
+  dependencies {
+    classpath 'foundation.icon:gradle-javaee-plugin:0.8.1'
+  }
 }
-
-// plugins {
-//     id 'java-library'
-//     id 'signing'
-//     id 'maven-publish'
-// id("io.github.gradle-nexus.publish-plugin") version "1.1.0"
-// }
-
-// apply plugin: 'io.github.gradle-nexus.publish-plugin'
-
-group = findProperty("GROUP") ?: System.getenv("OSSRH_GROUP")
-version = '0.2.0'
-
-def scoreIntegrationTest = new HashMap<String, String>()
 
 subprojects {
-    repositories {
-        mavenLocal()
-        mavenCentral()
-    }
+  repositories {
+    mavenCentral()
+  }
 
-    apply plugin: 'java'
-    apply plugin: 'foundation.icon.javaee'
-    apply plugin: 'jacoco'
+  apply plugin: 'java'
+  apply plugin: 'foundation.icon.javaee'
 
-    java {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-    sourceSets {
-        intTest {
-            compileClasspath += sourceSets.main.output
-            runtimeClasspath += sourceSets.main.output
-            java {
-            }
-        }
-    }
+  java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+  }
 
-    ext {
-        deploymentENV = findProperty("deploymentENV") ?: 'local'
-        mockDApp = findProperty("${deploymentENV}.contracts.mock-dapp") as String
-        xCall = findProperty("${deploymentENV}.contracts.xcall") as String
-    }
-
-    dependencies {
-        compileOnly("foundation.icon:javaee-api:$javaeeVersion")
-        implementation("foundation.icon:javaee-scorex:$scorexVersion")
-
-        annotationProcessor("foundation.icon:javaee-score-client:$scoreClientVersion")
-        compileOnly("foundation.icon:javaee-score-client:$scoreClientVersion")
-
-        testImplementation 'com.google.protobuf:protobuf-javalite:3.13.0'
-        testImplementation 'foundation.icon:javaee-rt:0.9.3'
-        testImplementation("org.mockito:mockito-core:$mockitoCoreVersion")
-        testImplementation("org.mockito:mockito-inline:$mockitoCoreVersion")
-        testImplementation("foundation.icon:javaee-unittest:$javaeeUnittestVersion")
-        testAnnotationProcessor("foundation.icon:javaee-score-client:$scoreClientVersion")
-        testImplementation("foundation.icon:javaee-score-client:$scoreClientVersion")
-        testImplementation("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
-        testImplementation("foundation.icon:icon-sdk:$iconsdkVersion")
-        testImplementation("org.junit.jupiter:junit-jupiter-api:$jupiterApiVersion")
-        testImplementation("org.junit.jupiter:junit-jupiter-params:$jupiterParamsVersion")
-        testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$jupiterEngineVersion")
-    }
-
-    configurations {
-        intTestImplementation.extendsFrom testImplementation
-        intTestAnnotationProcessor.extendsFrom testAnnotationProcessor
-        intTestRuntimeOnly.extendsFrom testRuntimeOnly
-    }
-
-    scoreIntegrationTest.put('env.props', new File(project(':test-lib').projectDir, 'conf/env.props'))
-
-    afterEvaluate { project ->
-        scoreIntegrationTest.put(project.name, project.getTasks().getByName("optimizedJar").outputJarName)
-    }
-
-
-    // need to add this option to retrieve formal parameter names
-    compileJava {
-        options.compilerArgs += ['-parameters']
-    }
+  compileJava {
+    options.compilerArgs += ['-parameters']
+  }
 }
-gradle.taskGraph.whenReady { taskGraph ->
-    taskGraph.getAllTasks().eachWithIndex { task, n ->
-        if (task.name == 'integrationTest') {
-            scoreIntegrationTest.each { key, val -> task.systemProperty key, val }
-        }
-    }
-}
-
-
-task collectOptimizedJars(type: Copy) {
-    from subprojects.collect { subproject ->
-        subproject.fileTree('build/libs') {
-            include '**/*-optimized.jar'
-        }
-    }
-    into "$buildDir/output-jars"
-}
-
-task zipOutputOptimizedJars(type: Zip) {
-    dependsOn collectOptimizedJars
-    from("$buildDir/output-jars") {
-        include '**/*-optimized.jar'
-    }
-    archiveFileName = "javascore-contracts.zip"
-    destinationDirectory = file("$buildDir")
-}
-
-// nexusPublishing {
-//     packageGroup = GROUP
-//     repositories {
-//         sonatype {  //only for users registered in Sonatype after 24 Feb 2021
-//             nexusUrl.set(uri("https://s01.oss.sonatype.org/service/local/"))
-//             snapshotRepositoryUrl.set(uri("https://s01.oss.sonatype.org/content/repositories/snapshots/"))
-//             username = findProperty('mavenCentralUsername') ?: System.getenv("OSSRH_USERNAME")
-//             password = findProperty('mavenCentralPassword') ?: System.getenv("OSSRH_PASSWORD")
-//         }
-//     }
-// }
