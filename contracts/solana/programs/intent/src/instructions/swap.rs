@@ -58,7 +58,7 @@ pub fn swap_order(ctx: Context<SwapCtx>, order: SwapOrder) -> Result<()> {
         )?;
     }
 
-    event::SwapIntent {
+    emit!(event::SwapIntent {
         id: order.id(),
         emitter: order.emitter(),
         srcNID: order.src_nid(),
@@ -70,7 +70,7 @@ pub fn swap_order(ctx: Context<SwapCtx>, order: SwapOrder) -> Result<()> {
         toToken: order.to_token(),
         toAmount: order.to_amount(),
         data: order.data(),
-    };
+    });
 
     Ok(())
 }
