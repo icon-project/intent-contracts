@@ -66,10 +66,11 @@ pub fn resolve_cancel<'info>(
     let order_msg = OrderMessage::new(MessageType::FILL, fill.encode());
 
     connection::send_message(config, order.src_nid(), order_msg.encode())?;
-    event::OrderCancelled {
+
+    emit!(event::OrderCancelled {
         id: order.id(),
         srcNID: order.src_nid(),
-    };
+    });
 
     Ok(())
 }
