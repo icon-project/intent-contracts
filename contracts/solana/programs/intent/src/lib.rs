@@ -95,35 +95,6 @@ pub mod intent {
         )
     }
 
-    pub fn query_swap_accounts<'info>(
-        ctx: Context<'_, '_, '_, 'info, QueryAccountCtx<'info>>,
-        swap_order: SwapOrder,
-        page: u8,
-        limit: u8,
-    ) -> Result<QueryAccountsPaginateResponse> {
-        instructions::query_swap_accounts(ctx, swap_order, page, limit)
-    }
-
-    pub fn query_fill_accounts<'info>(
-        ctx: Context<'_, '_, '_, 'info, QueryAccountCtx<'info>>,
-        order: SwapOrder,
-        signer: Pubkey,
-        solver_address: String,
-        page: u8,
-        limit: u8,
-    ) -> Result<QueryAccountsPaginateResponse> {
-        instructions::query_fill_accounts(ctx, order, signer, solver_address, page, limit)
-    }
-
-    pub fn query_cancel_accounts(
-        ctx: Context<QueryAccountCtx>,
-        order: SwapOrder,
-        page: u8,
-        limit: u8,
-    ) -> Result<QueryAccountsPaginateResponse> {
-        instructions::query_cancel_accounts(ctx, order, page, limit)
-    }
-
     pub fn query_recv_message_accounts(
         ctx: Context<QueryAccountCtx>,
         src_network: String,

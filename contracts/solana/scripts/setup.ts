@@ -1,11 +1,13 @@
 import * as anchor from "@coral-xyz/anchor";
 import os from "os";
 import { PublicKey, Connection } from "@solana/web3.js";
+import { SYSTEM_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/native/system";
+import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
 import { keccakHash, loadKeypairFromFile, uint128ToArray } from "./utils";
 import { Intent } from "../target/types/intent";
 import intentIdl from "../target/idl/intent.json";
-import { SwapOrder } from "./types";
+import { MessageType, SwapOrder } from "./types";
 
 /** RPC PROVIDER */
 export const RPC_URL = "http://127.0.0.1:8899";
@@ -96,65 +98,37 @@ export class IntentPda {
   }
 }
 
-export const getSwapAccounts = async (order: any) => {
-  return await intentProgram.methods
-    .querySwapAccounts(order, 1, 30)
-    .accountsStrict({
-      config: IntentPda.config().pda,
-    })
-    .view({ commitment: "confirmed" });
-};
-
-export const getFillAccounts = async (
-  order: any,
-  signer: PublicKey,
-  solverAddress: string
-) => {
-  return await intentProgram.methods
-    .queryFillAccounts(order, signer, solverAddress, 1, 30)
-    .accountsStrict({
-      config: IntentPda.config().pda,
-    })
-    .view({ commitment: "confirmed" });
-};
-
-export const getCancelAccounts = async (order: any) => {
-  return await intentProgram.methods
-    .queryCancelAccounts(order, 1, 30)
-    .accountsStrict({
-      config: IntentPda.config().pda,
-    })
-    .view({ commitment: "confirmed" });
-};
-
-export const getRecvMessageAccounts = async (
-  srcNetwork: string,
-  connSn: number,
-  msg: Buffer
-) => {
-  return await intentProgram.methods
-    .queryRecvMessageAccounts(srcNetwork, new anchor.BN(connSn), msg, 1, 30)
-    .accountsStrict({
-      config: IntentPda.config().pda,
-    })
-    .view({ commitment: "confirmed" });
-};
-
 export const getSwapIx = async (swap: any) => {
-  const accounts = (await getSwapAccounts(swap)).accounts;
+  const swapOrder = SwapOrder.from(swap);
+  const creator = new PublicKey(swapOrder.creator);
+
+  // Required token accounts to swap the order (for SPL token)
+  let mint = null;
+  let tokenVaultAccount = null;
+  let signerTokenAccount = null;
+  if (swapOrder.token != SYSTEM_PROGRAM_ID.toString()) {
+    mint = new PublicKey(swapOrder.token);
+    tokenVaultAccount = IntentPda.vaultToken(mint).pda;
+    signerTokenAccount = await getAssociatedTokenAddress(mint, creator);
+  }
 
   return await intentProgram.methods
     .swap(swap)
     .accountsStrict({
-      signer: new PublicKey(swap.creator),
-      systemProgram: accounts[0].pubkey,
-      config: accounts[1].pubkey,
-      orderAccount: accounts[2].pubkey,
-      nativeVaultAccount: accounts[3].pubkey,
-      tokenVaultAccount: accounts[4].pubkey,
-      signerTokenAccount: accounts[5].pubkey,
-      mint: accounts[6].pubkey,
-      tokenProgram: accounts[7].pubkey,
+      systemProgram: SYSTEM_PROGRAM_ID,
+      signer: creator,
+      config: IntentPda.config().pda,
+      orderAccount: IntentPda.order(
+        creator,
+        swapOrder.dstNID,
+        Number(swapOrder.amount),
+        Number(swapOrder.toAmount)
+      ).pda,
+      nativeVaultAccount: IntentPda.vaultNative().pda,
+      tokenVaultAccount,
+      signerTokenAccount,
+      mint,
+      tokenProgram: TOKEN_PROGRAM_ID,
     })
     .instruction();
 };
@@ -164,40 +138,81 @@ export const getFillIx = async (
   solverKey: PublicKey,
   solverAddress: string
 ) => {
-  const accounts = (await getFillAccounts(swap, solverKey, solverAddress))
-    .accounts;
+  const swapOrder = SwapOrder.from(swap);
+  const destinationAddress = new PublicKey(swapOrder.destinationAddress);
+
+  let configPda = IntentPda.config().pda;
+  const config = await intentProgram.account.config.fetch(configPda);
+
+  // Required token accounts to fill the order (for SPL token)
+  let mint = null;
+  let feeHandlerTokenAddress = null;
+  let destinationTokenAddress = null;
+  let solverTokenAddress = null;
+  if (swapOrder.toToken != SYSTEM_PROGRAM_ID.toString()) {
+    mint = new PublicKey(swapOrder.toToken);
+    feeHandlerTokenAddress = await getAssociatedTokenAddress(
+      mint,
+      config.feeHandler
+    );
+    destinationTokenAddress = await getAssociatedTokenAddress(
+      mint,
+      destinationAddress
+    );
+    solverTokenAddress = await getAssociatedTokenAddress(mint, solverKey);
+  }
+
+  // if `srcNID` and `dstNID` of order is same then We need to prepare the remaining accounts
+  // because the order is resolved in same transaction and have to send the accounts required
+  // to resolve the order
+  let remainingAccounts = [];
+  if (swapOrder.srcNID == swapOrder.dstNID) {
+    remainingAccounts = await getResolveFillAccounts(swapOrder, solverAddress);
+  }
 
   return await intentProgram.methods
     .fill(swap, solverAddress.toString())
     .accountsStrict({
+      systemProgram: SYSTEM_PROGRAM_ID,
       signer: solverKey,
-      systemProgram: accounts[0].pubkey,
-      config: accounts[1].pubkey,
-      feeHandler: accounts[2].pubkey,
-      destinationAddress: accounts[3].pubkey,
-      orderFinished: accounts[4].pubkey,
-      feeHandlerTokenAccount: accounts[5].pubkey,
-      destinationTokenAccount: accounts[6].pubkey,
-      signerTokenAccount: accounts[7].pubkey,
-      mint: accounts[8].pubkey,
-      tokenProgram: accounts[9].pubkey,
-      associatedTokenProgram: accounts[10].pubkey,
+      config: IntentPda.config().pda,
+      feeHandler: config.feeHandler,
+      destinationAddress: destinationAddress,
+      orderFinished: IntentPda.orderFinished(swapOrder).pda,
+      feeHandlerTokenAccount: feeHandlerTokenAddress,
+      destinationTokenAccount: destinationTokenAddress,
+      signerTokenAccount: solverTokenAddress,
+      mint: mint,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
     })
-    .remainingAccounts(accounts.slice(11))
+    .remainingAccounts(remainingAccounts)
     .instruction();
 };
 
 export const getCancelIx = async (swap: any) => {
-  const accounts = (await getCancelAccounts(swap)).accounts;
+  const swapOrder = SwapOrder.from(swap);
+  const creatorKey = new PublicKey(swapOrder.creator);
+
+  // Only send order_finished account if the swap is being done in same chain
+  let order_finished = null;
+  if (swapOrder.srcNID == swapOrder.dstNID) {
+    order_finished = IntentPda.orderFinished(swapOrder).pda;
+  }
 
   return await intentProgram.methods
     .cancel(swap)
     .accountsStrict({
-      signer: new PublicKey(swap.creator),
-      systemProgram: accounts[0].pubkey,
-      config: accounts[1].pubkey,
-      orderAccount: accounts[2].pubkey,
-      orderFinished: accounts[3].pubkey,
+      systemProgram: SYSTEM_PROGRAM_ID,
+      signer: creatorKey,
+      config: IntentPda.config().pda,
+      orderAccount: IntentPda.order(
+        creatorKey,
+        swapOrder.dstNID,
+        swapOrder.amount,
+        swapOrder.toAmount
+      ).pda,
+      orderFinished: order_finished,
     })
     .instruction();
 };
@@ -205,20 +220,134 @@ export const getCancelIx = async (swap: any) => {
 export const getRecvMessageIx = async (
   srcNetwork: string,
   connSn: number,
+  swapOrder: SwapOrder,
   message: Buffer,
-  signer: PublicKey
+  messageType: MessageType,
+  signer: PublicKey,
+  solverAddress: string
 ) => {
-  const accounts = (await getRecvMessageAccounts(srcNetwork, connSn, message))
-    .accounts;
+  let remainingAccounts = [];
+  if (messageType == MessageType.FILL) {
+    remainingAccounts = await getResolveFillAccounts(swapOrder, solverAddress);
+  } else {
+    remainingAccounts = [
+      {
+        pubkey: IntentPda.config().pda,
+        isWritable: true,
+        isSigner: false,
+      },
+      {
+        pubkey: IntentPda.orderFinished(swapOrder).pda,
+        isWritable: true,
+        isSigner: false,
+      },
+      {
+        pubkey: intentProgram.programId,
+        isWritable: true,
+        isSigner: false,
+      },
+    ];
+  }
 
   return await intentProgram.methods
     .recvMessage(srcNetwork, new anchor.BN(connSn), message)
     .accountsStrict({
+      systemProgram: SYSTEM_PROGRAM_ID,
       signer: signer,
-      systemProgram: accounts[0].pubkey,
-      config: accounts[1].pubkey,
-      receipt: accounts[2].pubkey,
+      config: IntentPda.config().pda,
+      receipt: IntentPda.receipt(srcNetwork, connSn).pda,
     })
-    .remainingAccounts(accounts.slice(3))
+    .remainingAccounts(remainingAccounts)
     .instruction();
+};
+
+export const getResolveFillAccounts = async (
+  swapOrder: SwapOrder,
+  solverAddress: string
+) => {
+  const orderCreator = new PublicKey(swapOrder.creator);
+  const solverAddressKey = new PublicKey(solverAddress);
+
+  let mint = intentProgram.programId;
+  let solverTokenAddress = intentProgram.programId;
+  let vaultTokenAddress = intentProgram.programId;
+
+  if (swapOrder.token != SYSTEM_PROGRAM_ID.toString()) {
+    mint = new PublicKey(swapOrder.token);
+    vaultTokenAddress = IntentPda.vaultToken(mint).pda;
+    solverTokenAddress = await getAssociatedTokenAddress(
+      mint,
+      solverAddressKey
+    );
+  }
+
+  const remainingAccounts = [
+    // Mutable config account
+    {
+      pubkey: IntentPda.config().pda,
+      isWritable: true,
+      isSigner: false,
+    },
+    // Order account
+    {
+      pubkey: IntentPda.order(
+        orderCreator,
+        swapOrder.dstNID,
+        Number(swapOrder.amount),
+        Number(swapOrder.toAmount)
+      ).pda,
+      isWritable: true,
+      isSigner: false,
+    },
+    // Order creator account
+    {
+      pubkey: orderCreator,
+      isWritable: true,
+      isSigner: false,
+    },
+    // Solver account
+    {
+      pubkey: solverAddressKey,
+      isWritable: true,
+      isSigner: false,
+    },
+    // Solver token account (null for native transfer)
+    {
+      pubkey: solverTokenAddress,
+      isWritable: true,
+      isSigner: false,
+    },
+    // Vault native account
+    {
+      pubkey: IntentPda.vaultNative().pda,
+      isWritable: true,
+      isSigner: false,
+    },
+    // Vault token account (null for native transfer)
+    {
+      pubkey: vaultTokenAddress,
+      isWritable: true,
+      isSigner: false,
+    },
+    // Mint account (null for native transfer)
+    {
+      pubkey: mint,
+      isWritable: true,
+      isSigner: false,
+    },
+    // Token program
+    {
+      pubkey: TOKEN_PROGRAM_ID,
+      isWritable: true,
+      isSigner: false,
+    },
+    // Associated token program ID
+    {
+      pubkey: ASSOCIATED_TOKEN_PROGRAM_ID,
+      isWritable: true,
+      isSigner: false,
+    },
+  ];
+
+  return remainingAccounts;
 };
