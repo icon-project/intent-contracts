@@ -68,8 +68,11 @@ describe("Receive Message", async () => {
     const recvMessageIx = await getRecvMessageIx(
       srcNid,
       connSn,
+      swapOrder,
       Buffer.from(orderMessage.encode()),
-      ctx.admin.publicKey
+      MessageType.CANCEL,
+      ctx.admin.publicKey,
+      ""
     );
     const recvMessageTx = await txnHelpers.buildV0Txn(
       [recvMessageIx],
@@ -115,8 +118,11 @@ describe("Receive Message", async () => {
     const recvMessageIx = await getRecvMessageIx(
       srcNid,
       connSn,
+      swapOrder,
       Buffer.from(orderMessage.encode()),
-      ctx.admin.publicKey
+      MessageType.CANCEL,
+      ctx.admin.publicKey,
+      ""
     );
     const recvMessageTx = await txnHelpers.buildV0Txn(
       [recvMessageIx],
@@ -162,8 +168,11 @@ describe("Receive Message", async () => {
     const recvMessageIx = await getRecvMessageIx(
       srcNid,
       connSn,
+      swapOrder,
       Buffer.from(orderMessage.encode()),
-      creator.publicKey
+      MessageType.CANCEL,
+      creator.publicKey,
+      ""
     );
     const recvMessageTx = await txnHelpers.buildV0Txn(
       [recvMessageIx],
@@ -222,8 +231,11 @@ describe("Receive Message", async () => {
     const recvMessageIx = await getRecvMessageIx(
       dstNid,
       connSn,
+      swapOrder,
       Buffer.from(orderMessage.encode()),
-      ctx.admin.publicKey
+      MessageType.FILL,
+      ctx.admin.publicKey,
+      creator.publicKey.toString()
     );
     const recvMessageTx = await txnHelpers.buildV0Txn(
       [recvMessageIx],
