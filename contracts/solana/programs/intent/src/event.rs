@@ -56,7 +56,7 @@ pub struct OrderClosed {
 
 /// Emitted when a cross-chain message is sent
 #[event]
-pub struct Message {
+pub struct SendMessage {
     // The ID of the target network
     pub targetNetwork: String,
     // The connection sequence number

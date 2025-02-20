@@ -13,7 +13,7 @@ pub fn send_message<'info>(
 ) -> Result<()> {
     let conn_sn = config.increment_conn_sn();
 
-    emit!(event::Message {
+    emit!(event::SendMessage {
         targetNetwork: to,
         sn: conn_sn,
         msg,
