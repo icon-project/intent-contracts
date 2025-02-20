@@ -14,10 +14,8 @@ pub fn query_recv_message_accounts(
     ctx: Context<QueryAccountCtx>,
     src_network: String,
     conn_sn: u128,
-    msg: Vec<u8>,
-    page: u8,
-    limit: u8,
-) -> Result<QueryAccountsPaginateResponse> {
+    msg: Vec<u8>
+) -> Result<QueryAccountsResponse> {
     let config = &ctx.accounts.config;
 
     let (receipt_pda, _) = Pubkey::find_program_address(
@@ -124,11 +122,9 @@ pub fn query_recv_message_accounts(
         }
     }
 
-    Ok(QueryAccountsPaginateResponse::new(
-        account_metas,
-        page,
-        limit,
-    ))
+    Ok(QueryAccountsResponse {
+        accounts: account_metas
+    })
 }
 
 #[derive(Accounts)]

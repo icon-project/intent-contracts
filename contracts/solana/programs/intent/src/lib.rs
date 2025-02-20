@@ -100,9 +100,7 @@ pub mod intent {
         src_network: String,
         conn_sn: u128,
         msg: Vec<u8>,
-        page: u8,
-        limit: u8,
-    ) -> Result<QueryAccountsPaginateResponse> {
-        instructions::query_recv_message_accounts(ctx, src_network, conn_sn, msg, page, limit)
+    ) -> Result<QueryAccountsResponse> {
+        instructions::query_recv_message_accounts(ctx, src_network, conn_sn, msg)
     }
 }
