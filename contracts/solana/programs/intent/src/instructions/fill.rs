@@ -107,7 +107,7 @@ pub fn order_fill<'info>(
     }
 
     let order_msg = OrderMessage::new(MessageType::FILL, fill.encode());
-    connection::send_message(config, order.dst_nid(), order_msg.encode())?;
+    connection::send_message(config, order.src_nid(), order_msg.encode())?;
 
     emit!(event::OrderFilled {
         id: order.id(),
