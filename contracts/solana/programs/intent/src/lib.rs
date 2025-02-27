@@ -13,7 +13,7 @@ use error::IntentError;
 use instructions::*;
 use types::*;
 
-declare_id!("4nTmHeE5qdFuKoqeakERkMn3iFFV2X76zkvdDA26LPCG");
+declare_id!("FgPgECEpBRdV9gV18jR7icvpPabEvgVJof3A6aPn1UjY");
 
 #[program]
 pub mod intent {

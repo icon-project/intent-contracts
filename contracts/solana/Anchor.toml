@@ -4,14 +4,14 @@
 resolution = false
 skip-lint = false
 
-[programs.localnet]
-intent = "4nTmHeE5qdFuKoqeakERkMn3iFFV2X76zkvdDA26LPCG"
+[programs.mainnet]
+intent = "FgPgECEpBRdV9gV18jR7icvpPabEvgVJof3A6aPn1UjY"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Localnet"
+cluster = "Mainnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
