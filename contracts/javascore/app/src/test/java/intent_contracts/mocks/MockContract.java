@@ -22,4 +22,8 @@ public class MockContract<T> {
     public Address getAddress() {
         return deployedScore.getAddress();
     }
+
+    public Account getAccount() {
+        return deployedScore.getAccount();
+    }
 }

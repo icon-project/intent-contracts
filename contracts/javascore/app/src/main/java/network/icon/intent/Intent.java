@@ -6,6 +6,7 @@ import java.util.Arrays;
 import static network.icon.intent.constants.Constant.*;
 import network.icon.intent.constants.Constant.OrderAction;
 import network.icon.intent.db.SwapOrderDb;
+import network.icon.intent.structs.Cancel;
 import network.icon.intent.structs.OrderFill;
 import network.icon.intent.structs.OrderMessage;
 import network.icon.intent.structs.TokenFallbackData;
@@ -23,7 +24,7 @@ public class Intent extends GeneralizedConnection {
     public final VarDB<String> networkId = Context.newVarDB(NETWORK_ID, String.class);
     public final VarDB<BigInteger> protocolFee = Context.newVarDB(PROTOCOL_FEE, BigInteger.class);
     public static final VarDB<Address> feeHandler = Context.newVarDB(FEE_HANDLER, Address.class);
-    
+
     private static final DictDB<BigInteger, SwapOrderDb> orders = Context.newDictDB(ORDERS, SwapOrderDb.class);
     private static final DictDB<byte[], Boolean> finishedOrders = Context.newDictDB(FINISHED_ORDERS, Boolean.class);
 
@@ -62,7 +63,7 @@ public class Intent extends GeneralizedConnection {
             relayAddress.set(_relayer);
         }
     }
-    
+
     @External
     public void tokenFallback(Address _from, BigInteger _value, byte[] _data) {
         TokenFallbackData fallbackData = TokenFallbackData.fromBytes(_data);
@@ -73,6 +74,7 @@ public class Intent extends GeneralizedConnection {
             case SWAP:
                 Context.require(_value.equals(swapOrder.amount), "Value and amount must be equal");
                 Context.require(_from.toString().equals(swapOrder.creator), "Depositer must be creator");
+                Context.require(Context.getCaller().toString().equals(swapOrder.token), "token must be caller");
                 _swap(swapOrder);
                 break;
             case FILL:
@@ -141,7 +143,7 @@ public class Intent extends GeneralizedConnection {
             return;
         }
 
-        OrderMessage _msg = new OrderMessage(OrderAction.CANCEL.getValue(), order.toBytes());
+        OrderMessage _msg = new OrderMessage(OrderAction.CANCEL.getValue(), new Cancel(order.toBytes()).toBytes());
 
         _sendMessage(order.dstNID, _msg.toBytes());
     }
@@ -156,7 +158,7 @@ public class Intent extends GeneralizedConnection {
             OrderFill fillOrder = OrderFill.fromBytes(receivedMessage.message);
             _resolveFill(srcNetwork, fillOrder);
         } else if (receivedMessage.messageType.equals(OrderAction.CANCEL.getValue())) {
-            _resolveCancel(srcNetwork, receivedMessage.message);
+            _resolveCancel(srcNetwork, Cancel.fromBytes(receivedMessage.message).orderBytes);
         }
     }
 
@@ -166,9 +168,8 @@ public class Intent extends GeneralizedConnection {
         if (isOrderFinished) {
             return;
         }
-
         SwapOrderDb cancelledOrder = SwapOrderDb.fromBytes(orderBytes);
-        Context.require(cancelledOrder.srcNID.equals(networkId.get()), "Invalid Network");
+        Context.require(cancelledOrder.dstNID.equals(networkId.get()), "Invalid Network");
 
         finishedOrders.set(orderHash, true);
 
