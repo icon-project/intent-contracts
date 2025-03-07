@@ -1,0 +1,55 @@
+dependencies {
+        compileOnly 'foundation.icon:javaee-api:0.9.6'
+        implementation 'foundation.icon:javaee-scorex:0.5.2'
+        implementation 'com.github.sink772:javaee-tokens:0.6.4'
+        implementation 'com.github.sink772:minimal-json:0.9.7'
+        testImplementation 'foundation.icon:javaee-unittest:0.10.0'
+    	testImplementation 'org.mockito:mockito-core:4.8.0'
+    	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
+    	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
+}
+
+optimizedJar {
+     mainClassName = 'network.icon.intent.Intent'
+     archivesBaseName = "intent" + 1 + ".jar"
+     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from {
+            configurations.runtimeClasspath.collect {it.isDirectory() ? it : zipTree(it) 
+            }
+    }
+}
+
+deployJar {
+    endpoints {
+        local {
+            uri = 'http://localhost:9080/api/v3'
+            nid = 0x3
+        }
+        mainnet {
+            uri = 'https://ctz.solidwallet.io/api/v3'
+            nid = 0x1
+            to = 'cx55f6ac86d82a14022c338c8c0033eeceeeab382d'
+        }
+    }
+
+    keystore = rootProject.hasProperty('keystoreName') ? "$keystoreName" : ''
+    password = rootProject.hasProperty('keystorePass') ? "$keystorePass" : ''
+    parameters {
+        arg("_nid", "0x1.icon")
+        arg("_protocolFee", "10")
+        arg("_feeHandler", "hx35e504e72af8b895dd5c19f8fc7aafc564403341")
+        arg("_relayer", "hxb3eca4ce3a2489361579a85d84d0c0475143d3b5")
+    }
+}
+
+repositories {
+    mavenCentral() 
+}
+
+
+test {
+     useJUnitPlatform()
+}
+
+
+
