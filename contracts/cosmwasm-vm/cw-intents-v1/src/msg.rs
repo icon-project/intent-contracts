@@ -33,6 +33,9 @@ pub enum ExecuteMsg {
         data: Vec<u8>,
         solver_address: String,
     },
+    Cancel {
+        order_id: u128
+    },
     RecvMessage {
         src_network: String,
         conn_sn: u128,

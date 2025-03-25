@@ -125,6 +125,42 @@ impl<'a> CwIntentV1Service<'a> {
         Ok(response)
     }
 
+    pub fn cancel(
+        &self,
+        order_id: u128,
+        deps: DepsMut,
+        info: MessageInfo,
+    ) -> Result<Response, ContractError> {
+        let order = self.get_order(deps.storage, order_id)?;
+        let order_bytes = order.rlp_bytes().to_vec();
+
+        if info.sender.to_string() != order.creator {
+            return Err(ContractError::Unauthorized {});
+        }
+
+        if order.src_nid == order.dst_nid {
+            let nid = self.get_nid(deps.storage)?;
+            return self.resolve_cancel(deps, nid, order_bytes);
+        }
+
+        let order_cancel = OrderCancel {
+            order_bytes
+        };
+        let order_msg = OrderMsg {
+            msg_type: ORDER_CANCEL,
+            message: order_cancel.rlp_bytes().to_vec()
+        };
+
+        let conn_sn = self.get_next_conn_sn(deps.storage)?;
+        let send_message_event = create_send_message_event(
+            order.dst_nid,
+            conn_sn,
+            order_msg.rlp_bytes().to_vec()
+        );
+
+        Ok(Response::new().add_event(send_message_event))
+    }
+
     pub fn receive_msg(
         &self,
         deps: DepsMut,

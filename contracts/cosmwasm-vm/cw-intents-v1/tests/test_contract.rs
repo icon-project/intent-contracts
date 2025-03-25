@@ -157,6 +157,7 @@ fn init_cw20_contract(app: &mut App, owner: String, denom: String) -> Addr {
     )
     .unwrap()
 }
+
 #[test]
 fn test_swap_cw20_token() {
     let mut app = mock_app();
@@ -244,6 +245,170 @@ fn test_fill_order() {
         }],
     );
     assert!(res.is_ok());
+}
+
+#[test]
+fn test_cancel_order() {
+    let mut app = mock_app();
+    let code_id = store_code(&mut app);
+    let contract_addr = instantiate_contract(&mut app, code_id, USER1);
+
+    // Fund USER1 with native tokens
+    fund_account(&mut app, USER1.to_string(), 1000, NATIVE_DENOM.to_string());
+
+    // Execute swap
+    let swap_msg = ExecuteMsg::Swap {
+        dst_nid: "dst-nid".to_string(),
+        token: NATIVE_DENOM.to_string(),
+        amount: 100,
+        to_token: "to_token".to_string(),
+        destination_address: USER2.to_string(),
+        min_receive: 90,
+        data: hex::decode("deadbeef").unwrap(),
+    };
+    let res = app.execute_contract(
+        Addr::unchecked(USER1),
+        contract_addr.clone(),
+        &swap_msg,
+        &[Coin {
+            denom: NATIVE_DENOM.to_string(),
+            amount: Uint128::new(100),
+        }],
+    );
+    assert!(res.is_ok());
+
+    let deposit_id: u128 = app
+        .wrap()
+        .query_wasm_smart(contract_addr.clone(), &QueryMsg::GetDepositId {})
+        .unwrap();
+
+    let cancel_msg = ExecuteMsg::Cancel{
+        order_id: deposit_id
+    };
+    let res = app.execute_contract(
+        Addr::unchecked(USER1),
+        contract_addr.clone(),
+        &cancel_msg,
+        &[]
+    );
+    assert!(res.is_ok());
+
+    // Check if the send message event is emitted
+    assert!(res
+        .unwrap()
+        .events
+        .iter()
+        .any(|e| e.ty == "wasm-SendMessage" && e.attributes.iter().any(|attr| attr.key == "sn")));
+}
+
+#[test]
+#[should_panic(expected = "Unauthorized")]
+fn test_cancel_fail_for_unauthorized_user() {
+    let mut app = mock_app();
+    let code_id = store_code(&mut app);
+    let contract_addr = instantiate_contract(&mut app, code_id, USER1);
+
+    // Fund USER1 with native tokens
+    fund_account(&mut app, USER1.to_string(), 1000, NATIVE_DENOM.to_string());
+
+    // Execute swap
+    let swap_msg = ExecuteMsg::Swap {
+        dst_nid: "dst-nid".to_string(),
+        token: NATIVE_DENOM.to_string(),
+        amount: 100,
+        to_token: "to_token".to_string(),
+        destination_address: USER2.to_string(),
+        min_receive: 90,
+        data: hex::decode("deadbeef").unwrap(),
+    };
+    let res = app.execute_contract(
+        Addr::unchecked(USER1),
+        contract_addr.clone(),
+        &swap_msg,
+        &[Coin {
+            denom: NATIVE_DENOM.to_string(),
+            amount: Uint128::new(100),
+        }],
+    );
+    assert!(res.is_ok());
+
+    let deposit_id: u128 = app
+        .wrap()
+        .query_wasm_smart(contract_addr.clone(), &QueryMsg::GetDepositId {})
+        .unwrap();
+
+    let cancel_msg = ExecuteMsg::Cancel{
+        order_id: deposit_id
+    };
+    app.execute_contract(
+        Addr::unchecked(USER2),
+        contract_addr.clone(),
+        &cancel_msg,
+        &[]
+    ).unwrap();
+}
+
+#[test]
+fn test_cancel_and_resolve() {
+    let mut app = mock_app();
+    let code_id = store_code(&mut app);
+    let contract_addr = instantiate_contract(&mut app, code_id, USER1);
+
+    // Fund USER1 with native tokens
+    fund_account(&mut app, USER1.to_string(), 1000, NATIVE_DENOM.to_string());
+
+    // Execute swap
+    let swap_msg = ExecuteMsg::Swap {
+        dst_nid: "src-nid".to_string(),
+        token: NATIVE_DENOM.to_string(),
+        amount: 100,
+        to_token: "to_token".to_string(),
+        destination_address: USER2.to_string(),
+        min_receive: 90,
+        data: hex::decode("deadbeef").unwrap(),
+    };
+    let res = app.execute_contract(
+        Addr::unchecked(USER1),
+        contract_addr.clone(),
+        &swap_msg,
+        &[Coin {
+            denom: NATIVE_DENOM.to_string(),
+            amount: Uint128::new(100),
+        }],
+    );
+    assert!(res.is_ok());
+    let user_balance = app.wrap().query_balance(USER1, NATIVE_DENOM).unwrap().amount;
+    assert_eq!(user_balance.to_string(), "900");
+
+    let deposit_id: u128 = app
+        .wrap()
+        .query_wasm_smart(contract_addr.clone(), &QueryMsg::GetDepositId {})
+        .unwrap();
+
+    let cancel_msg = ExecuteMsg::Cancel{
+        order_id: deposit_id
+    };
+    let res = app.execute_contract(
+        Addr::unchecked(USER1),
+        contract_addr.clone(),
+        &cancel_msg,
+        &[]
+    );
+    assert!(res.is_ok());
+
+    let response = res.unwrap();
+
+    // Check if the order cancelled event is emitted
+    assert!(response
+        .events
+        .iter()
+        .any(|e| e.ty == "wasm-OrderCancelled" && e.attributes.iter().any(|attr| attr.key == "order")));
+    
+    // Check if the send message event is emitted
+    assert!(response
+        .events
+        .iter()
+        .any(|e| e.ty == "wasm-SendMessage" && e.attributes.iter().any(|attr| attr.key == "sn")));
 }
 
 #[test]

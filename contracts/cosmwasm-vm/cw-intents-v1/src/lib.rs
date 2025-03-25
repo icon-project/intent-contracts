@@ -96,6 +96,9 @@ pub fn execute(
             };
             call_service.fill(order, solver_address, deps, env, info)
         }
+        ExecuteMsg::Cancel {order_id} => {
+            call_service.cancel(order_id, deps, info)
+        }
         ExecuteMsg::RecvMessage {
             src_network,
             conn_sn,
