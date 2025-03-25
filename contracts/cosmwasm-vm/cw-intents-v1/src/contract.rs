@@ -256,7 +256,7 @@ impl<'a> CwIntentV1Service<'a> {
             solver_address: order.creator.clone(),
         };
         let msg = OrderMsg {
-            msg_type: ORDER_CANCEL,
+            msg_type: ORDER_FILL,
             message: fill.rlp_bytes().to_vec(),
         };
         let conn_sn = self.get_next_conn_sn(deps.storage)?;
