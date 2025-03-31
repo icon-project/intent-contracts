@@ -15,10 +15,10 @@ use crate::{
     recv_message::*,
     state::*,
     types::{
+        misc::Resolve,
         order_fill::OrderFill,
         order_message::{MessageType, OrderMessage},
         swap_order::SwapOrder,
-        misc::Resolve,
     },
 };
 
@@ -107,12 +107,12 @@ pub fn order_fill<'info>(
     }
 
     let order_msg = OrderMessage::new(MessageType::FILL, fill.encode());
-    connection::send_message(config, order.dst_nid(), order_msg.encode())?;
+    connection::send_message(config, order.src_nid(), order_msg.encode())?;
 
-    event::OrderFilled {
+    emit!(event::OrderFilled {
         id: order.id(),
         srcNID: order.src_nid(),
-    };
+    });
 
     Ok(())
 }
@@ -167,7 +167,7 @@ pub fn resolve_fill(
         )?;
     }
 
-    event::OrderClosed { id: order.id() };
+    emit!(event::OrderClosed { id: order.id() });
 
     Ok(())
 }

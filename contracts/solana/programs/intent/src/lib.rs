@@ -13,7 +13,7 @@ use error::IntentError;
 use instructions::*;
 use types::*;
 
-declare_id!("4nTmHeE5qdFuKoqeakERkMn3iFFV2X76zkvdDA26LPCG");
+declare_id!("FgPgECEpBRdV9gV18jR7icvpPabEvgVJof3A6aPn1UjY");
 
 #[program]
 pub mod intent {
@@ -95,43 +95,12 @@ pub mod intent {
         )
     }
 
-    pub fn query_swap_accounts<'info>(
-        ctx: Context<'_, '_, '_, 'info, QueryAccountCtx<'info>>,
-        swap_order: SwapOrder,
-        page: u8,
-        limit: u8,
-    ) -> Result<QueryAccountsPaginateResponse> {
-        instructions::query_swap_accounts(ctx, swap_order, page, limit)
-    }
-
-    pub fn query_fill_accounts<'info>(
-        ctx: Context<'_, '_, '_, 'info, QueryAccountCtx<'info>>,
-        order: SwapOrder,
-        signer: Pubkey,
-        solver_address: String,
-        page: u8,
-        limit: u8,
-    ) -> Result<QueryAccountsPaginateResponse> {
-        instructions::query_fill_accounts(ctx, order, signer, solver_address, page, limit)
-    }
-
-    pub fn query_cancel_accounts(
-        ctx: Context<QueryAccountCtx>,
-        order: SwapOrder,
-        page: u8,
-        limit: u8,
-    ) -> Result<QueryAccountsPaginateResponse> {
-        instructions::query_cancel_accounts(ctx, order, page, limit)
-    }
-
     pub fn query_recv_message_accounts(
         ctx: Context<QueryAccountCtx>,
         src_network: String,
         conn_sn: u128,
         msg: Vec<u8>,
-        page: u8,
-        limit: u8,
-    ) -> Result<QueryAccountsPaginateResponse> {
-        instructions::query_recv_message_accounts(ctx, src_network, conn_sn, msg, page, limit)
+    ) -> Result<QueryAccountsResponse> {
+        instructions::query_recv_message_accounts(ctx, src_network, conn_sn, msg)
     }
 }
